@@ -6,6 +6,7 @@ import (
 
     tea "github.com/charmbracelet/bubbletea"
     trip "github.com/isobelmcrae/trip/api"
+    "github.com/charmbracelet/log"
 
     "strings"
     lg "github.com/charmbracelet/lipgloss"
