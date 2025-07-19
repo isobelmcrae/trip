@@ -4,24 +4,24 @@ import lg "github.com/charmbracelet/lipgloss"
 
 // flexbox border styles
 var (
-    InactiveStyle = lg.NewStyle().
-        BorderStyle(lg.ThickBorder()).
-        BorderForeground(InactiveColour)
-    ActiveStyle = lg.NewStyle().
-        BorderStyle(lg.ThickBorder()).
-        BorderForeground(ActiveColour)
+    Border = lg.NewStyle().
+        BorderStyle(lg.RoundedBorder())
 )
 
 // flexbox internal content styles
 var (
-    WelcomeBox = lg.NewStyle().
+    WelcomeMain = lg.NewStyle().
         AlignHorizontal(lg.Center).
-        AlignVertical(lg.Center)
-    WelcomeBoxText = lg.NewStyle().
+        AlignVertical(lg.Center).
+        Align(lg.Center).
+        Inherit(Border)
+    WelcomeMainContent = lg.NewStyle().
         Align(lg.Center)
-    SidebarBox = lg.NewStyle().
+    WelcomeSidebar = lg.NewStyle().
         PaddingRight(2).
         PaddingLeft(2).
-        PaddingTop(1)
-    LegBox = lg.NewStyle() 
+        PaddingTop(0).
+        Inherit(Border)
+    WelcomeSidebarContent = lg.NewStyle()
+    LegBox = lg.NewStyle()
 )

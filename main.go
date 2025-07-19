@@ -3,7 +3,7 @@ package main
 import (
     tea "github.com/charmbracelet/bubbletea"
     "github.com/joho/godotenv"
-    "github.com/isobelmcrae/trip/model"
+    ui "github.com/isobelmcrae/trip/ui"
     "github.com/charmbracelet/log"
 )
 
@@ -14,7 +14,7 @@ func main() {
         log.Error("Error loading .env")
     }
 
-    m := model.InitialModel()
+    m := ui.InitaliseRootModel()
     p := tea.NewProgram(m, tea.WithAltScreen())
 
     if _, err := p.Run(); err != nil {
