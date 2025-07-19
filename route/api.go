@@ -1,4 +1,6 @@
-package api
+package route
+
+/*
 
 import (
 	"encoding/json"
@@ -125,3 +127,4 @@ func (tc *TripClient) TripPlan(origin string, destination string) ([]Journey, er
 
     return parsed.Journeys, err
 }
+*/

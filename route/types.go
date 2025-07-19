@@ -1,7 +1,9 @@
-package api
+package route
+
+/*
 
 import (
-    "net/http"
+	"net/http"
 )
 
 type TripClient struct {
@@ -137,3 +139,4 @@ type Destination struct {
     Name string `json:"name"`
 }
 
+*/
