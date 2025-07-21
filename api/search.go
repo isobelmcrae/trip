@@ -32,7 +32,8 @@ type StopSearchResult struct {
 	Lon    float64
 }
 
-func (tc *TripClient) FindStop(search string) ([]StopSearchResult, error) {
+// this should never fail
+func (tc *TripClient) FindStop(search string) []StopSearchResult {
 	// assumed to finish quickly, context unnecessary
 	rows, err := tc.db.Query(`
 		select s.id, s.name, s.lat, s.lon
@@ -43,8 +44,7 @@ func (tc *TripClient) FindStop(search string) ([]StopSearchResult, error) {
 		limit ?
 	`, SanitiseSeach(search), SearchStopMaxResults)
 	if err != nil {
-		log.Errorf("cannot perform search: %v", err)
-		return nil, err
+		log.Fatalf("cannot perform search: %v", err)
 	}
 
 	results := make([]StopSearchResult, 0, SearchStopMaxResults)
@@ -58,8 +58,7 @@ func (tc *TripClient) FindStop(search string) ([]StopSearchResult, error) {
 
 		err = rows.Scan(&id, &name, &lat, &lon)
 		if err != nil {
-			log.Errorf("cannot scan rows: %v", err)
-			return nil, err
+			log.Fatalf("cannot scan rows: %v", err)
 		}
 
 		results = append(results, StopSearchResult{
@@ -70,5 +69,13 @@ func (tc *TripClient) FindStop(search string) ([]StopSearchResult, error) {
 		})
 	}
 
-	return results, nil
+	return results
+}
+
+func (tc *TripClient) FindStopFirstOrPanic(search string) StopSearchResult {
+	results := tc.FindStop(search)
+	if len(results) == 0 {
+		log.Fatalf("no results found for search: %s", search)
+	}
+	return results[0]
 }

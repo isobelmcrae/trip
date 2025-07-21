@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/isobelmcrae/trip/api"
-	"github.com/isobelmcrae/trip/model"
+	"github.com/isobelmcrae/trip/state"
 )
 
 func TestSearchStopSanitiseSearch(t *testing.T) {
@@ -22,7 +22,7 @@ func TestSearchStopSanitiseSearch(t *testing.T) {
 }
 
 func TestSearchStop(t *testing.T) {
-	db, err := sql.Open("sqlite3", model.DatabasePath)
+	db, err := sql.Open("sqlite3", state.DatabasePath)
     if err != nil {
         log.Fatal(err)
     }
