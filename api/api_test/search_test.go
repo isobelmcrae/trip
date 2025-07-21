@@ -7,6 +7,8 @@ import (
 
 	"github.com/isobelmcrae/trip/api"
 	"github.com/isobelmcrae/trip/state"
+
+	_ "github.com/mattn/go-sqlite3"
 )
 
 func TestSearchStopSanitiseSearch(t *testing.T) {
@@ -31,12 +33,7 @@ func TestSearchStop(t *testing.T) {
 	tc := api.NewClient(db)
 
 	verify := func(search string, ID ...string) {
-		stops, err := tc.FindStop(search)
-		if err != nil {
-			t.Errorf("error searching for %s: %v", search, err)
-			return
-		}
-
+		stops := tc.FindStop(search)
 		found := make([]bool, len(ID))
 		for _, stop := range stops {
 			for i, id := range ID {
