@@ -14,10 +14,10 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 
-	"github.com/isobelmcrae/trip/route"
+	"github.com/isobelmcrae/trip/api"
 )
 
-func ParseStations(filePath string) ([]route.Stop, error) {
+func ParseStations(filePath string) ([]api.StopSearchResult, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("error opening file: %w", err)
@@ -66,8 +66,8 @@ func ParseStations(filePath string) ([]route.Stop, error) {
 			return nil, fmt.Errorf("missing required column in CSV: %s", colName)
 		}
 	}
-	
-	var stations []route.Stop
+
+	var stations []api.StopSearchResult
 	for {
 		record, err := reader.Read()
 		if err == io.EOF {
@@ -90,11 +90,11 @@ func ParseStations(filePath string) ([]route.Stop, error) {
 				continue
 			}
 
-			station := route.Stop{
-				ID:           record[columnIndex["stop_id"]],
-				Name:         record[columnIndex["stop_name"]],
-				Lat:          lat,
-				Lon:          lon,
+			station := api.StopSearchResult{
+				ID:   record[columnIndex["stop_id"]],
+				Name: record[columnIndex["stop_name"]],
+				Lat:  lat,
+				Lon:  lon,
 			}
 			stations = append(stations, station)
 		}
@@ -104,7 +104,9 @@ func ParseStations(filePath string) ([]route.Stop, error) {
 }
 
 func main() {
-	stopsGtfsPath := os.Args[1] // go run api_load_schema ./stops.txt
+	// go run api_load_schema ./app.sqlite ./stops.txt
+	databasePath := os.Args[1]
+	stopsGtfsPath := os.Args[2]
 
 	stops, err := ParseStations(stopsGtfsPath)
 
@@ -112,7 +114,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	db, err := sql.Open("sqlite3", route.DatabaseName)
+	db, err := sql.Open("sqlite3", databasePath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -152,7 +154,7 @@ func main() {
 	if err != nil {
 		log.Printf("Error optimizing FTS index: %v", err)
 	}
-	
+
 	if err != nil {
 		log.Fatal(err)
 	}

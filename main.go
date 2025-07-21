@@ -1,10 +1,10 @@
 package main
 
 import (
-    tea "github.com/charmbracelet/bubbletea"
-    "github.com/joho/godotenv"
-    ui "github.com/isobelmcrae/trip/ui"
-    "github.com/charmbracelet/log"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/log"
+	ui "github.com/isobelmcrae/trip/ui"
+	"github.com/joho/godotenv"
 )
 
 func main() {
