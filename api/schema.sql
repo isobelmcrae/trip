@@ -1,5 +1,5 @@
 -- sqlite3 api.sqlite
-create table "stop" (
+create table if not exists "stop" (
 	"id" text not null primary key,
 	"name" text not null,
 	"lat" real not null,

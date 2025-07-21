@@ -1,10 +1,8 @@
 package model
 
 import (
-    "sort"
-
-    tea "github.com/charmbracelet/bubbletea"
-    "github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/list"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 type stopItem struct {
@@ -25,6 +23,7 @@ func (s stopItem) FilterValue() string {
 // performs the search then formats for display in list
 // changes state
 func searchStops(m Model) (Model, tea.Cmd) {
+    // returns ranked list of stops
     stops, err := m.Client.FindStop(m.TextInput.Value())
     if err != nil || len(stops) == 0 {
         m.Result = "No stops found" // FIX: handle properly
@@ -39,11 +38,6 @@ func searchStops(m Model) (Model, tea.Cmd) {
         m.State = StateTyping
         return m, nil
     }
-    
-    // sort by match quality in results
-    sort.Slice(stops, func(i, j int) bool {
-        return stops[i].MatchQuality > stops[j].MatchQuality
-    })
 
     items := make([]list.Item, len(stops))
     for i, s := range stops {

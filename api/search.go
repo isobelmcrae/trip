@@ -17,7 +17,8 @@ const (
 	SearchStopMaxResults = 25
 )
 
-func sanitiseSeach(search string) string {
+// used in tests, useless export
+func SanitiseSeach(search string) string {
 	finalSearch := gReplacementReg.ReplaceAllLiteralString(search, "")
 	finalSearch = gWordReg.ReplaceAllString(finalSearch, "$1*")
 
@@ -25,13 +26,13 @@ func sanitiseSeach(search string) string {
 }
 
 type StopSearchResult struct {
-	StopId string
+	ID string
 	Name   string
 	Lat    float64
 	Lon    float64
 }
 
-func (tc *TripClient) SearchStop(search string) ([]StopSearchResult, error) {
+func (tc *TripClient) FindStop(search string) ([]StopSearchResult, error) {
 	// assumed to finish quickly, context unnecessary
 	rows, err := tc.db.Query(`
 		select s.id, s.name, s.lat, s.lon
@@ -40,13 +41,13 @@ func (tc *TripClient) SearchStop(search string) ([]StopSearchResult, error) {
 		where fts.name match ?
 		order by rank
 		limit ?
-	`, sanitiseSeach(search), SearchStopMaxResults)
+	`, SanitiseSeach(search), SearchStopMaxResults)
 	if err != nil {
 		log.Errorf("cannot perform search: %v", err)
 		return nil, err
 	}
 
-	results := make([]StopSearchResult, SearchStopMaxResults)
+	results := make([]StopSearchResult, 0, SearchStopMaxResults)
 
 	defer rows.Close()
 	for rows.Next() {
@@ -62,7 +63,7 @@ func (tc *TripClient) SearchStop(search string) ([]StopSearchResult, error) {
 		}
 
 		results = append(results, StopSearchResult{
-			StopId: id,
+			ID: id,
 			Name: name,
 			Lat: lat,
 			Lon: lon,

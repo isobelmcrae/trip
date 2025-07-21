@@ -91,7 +91,7 @@ func ParseStations(filePath string) ([]api.StopSearchResult, error) {
 			}
 
 			station := api.StopSearchResult{
-				StopId:   record[columnIndex["stop_id"]],
+				ID:   record[columnIndex["stop_id"]],
 				Name: record[columnIndex["stop_name"]],
 				Lat:  lat,
 				Lon:  lon,
@@ -104,7 +104,9 @@ func ParseStations(filePath string) ([]api.StopSearchResult, error) {
 }
 
 func main() {
-	stopsGtfsPath := os.Args[1] // go run api_load_schema ./stops.txt
+	// go run api_load_schema ./app.sqlite ./stops.txt
+	databasePath := os.Args[1]
+	stopsGtfsPath := os.Args[2]
 
 	stops, err := ParseStations(stopsGtfsPath)
 
@@ -112,7 +114,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	db, err := sql.Open("sqlite3", "app.sqlite")
+	db, err := sql.Open("sqlite3", databasePath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -129,9 +131,9 @@ func main() {
 	defer stmt.Close()
 
 	for i, stop := range stops {
-		_, err = stmt.Exec(stop.StopId, stop.Name, stop.Lat, stop.Lon)
+		_, err = stmt.Exec(stop.ID, stop.Name, stop.Lat, stop.Lon)
 		if err != nil {
-			log.Printf("Error inserting stop %d (%s): %v", i, stop.StopId, err)
+			log.Printf("Error inserting stop %d (%s): %v", i, stop.ID, err)
 			continue // Skip this stop and continue with the next
 		}
 	}

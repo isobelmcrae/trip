@@ -7,10 +7,6 @@ import (
 	"github.com/joho/godotenv"
 )
 
-const (
-    DatabaseName = "app.sqlite"
-)
-
 func main() {
     log.SetLevel(log.DebugLevel)
     err := godotenv.Load()

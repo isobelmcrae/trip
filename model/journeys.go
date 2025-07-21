@@ -1,14 +1,16 @@
 package model
 
 import (
-    "fmt"
-    "time"
+	"context"
+	"fmt"
+	"time"
 
-    tea "github.com/charmbracelet/bubbletea"
-    trip "github.com/isobelmcrae/trip/api"
+	tea "github.com/charmbracelet/bubbletea"
+	trip "github.com/isobelmcrae/trip/api"
 
-    "strings"
-    lg "github.com/charmbracelet/lipgloss"
+	"strings"
+
+	lg "github.com/charmbracelet/lipgloss"
 )
 
 // https://github.com/charmbracelet/bubbletea/tree/main/examples/tabs
@@ -33,7 +35,9 @@ var (
 
 func createJourneys(m Model) (Model, tea.Cmd) {
     sydneyLocation, _ := time.LoadLocation("Australia/Sydney")
-    journeys, err := m.Client.TripPlan(m.OriginID, m.DestinationID)
+
+    // we should handle requests that take a long time
+    journeys, err := m.Client.TripPlan(context.TODO(), m.OriginID, m.DestinationID)
     if err != nil || len(journeys) == 0 {
         // need to display that no routes were found
         return m, nil

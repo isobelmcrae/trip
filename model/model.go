@@ -1,11 +1,18 @@
 package model
 
 import (
-    "github.com/charmbracelet/bubbles/textinput"
-    "github.com/charmbracelet/bubbles/help"
-    "github.com/charmbracelet/bubbles/list"
-    tea "github.com/charmbracelet/bubbletea"
-    trip "github.com/isobelmcrae/trip/api"
+	"database/sql"
+	"log"
+	"path"
+	"runtime"
+
+	"github.com/charmbracelet/bubbles/help"
+	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/textinput"
+	tea "github.com/charmbracelet/bubbletea"
+	trip "github.com/isobelmcrae/trip/api"
+
+	_ "github.com/mattn/go-sqlite3"
 )
 
 // "states" - pages of the app
@@ -17,7 +24,22 @@ const (
     StateSelectingJourney
 )
 
+func forceRelativeToRoot(s string) string {
+    _, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		panic("unreachable")
+	}
+	return path.Join(path.Dir(filename), s)
+}
+
+var (
+    // this is exceptionally shitty code, but it allows our tests to actually get the database from root
+    DatabasePath = forceRelativeToRoot("../app.sqlite")
+)
+
 type Model struct {
+    Db     *sql.DB // app.sqlite
+
     Client *trip.TripClient
     Width, Height int 
 
@@ -49,8 +71,11 @@ func InitialModel() Model {
     sl.Title = "Choose origin stop:"
     sl.SetShowStatusBar(false)
 
-    client := trip.NewClient("https://api.transport.nsw.gov.au/v1/tp")
-    
+    db, err := sql.Open("sqlite3", DatabasePath)
+    if err != nil {
+        log.Fatal(err)
+    }
+    client := trip.NewClient(db)
 
     return Model{
         Client: client,
