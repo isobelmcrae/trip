@@ -14,10 +14,10 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 
-	"github.com/isobelmcrae/trip/route"
+	"github.com/isobelmcrae/trip/api"
 )
 
-func ParseStations(filePath string) ([]route.Stop, error) {
+func ParseStations(filePath string) ([]api.StopSearchResult, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("error opening file: %w", err)
@@ -66,8 +66,8 @@ func ParseStations(filePath string) ([]route.Stop, error) {
 			return nil, fmt.Errorf("missing required column in CSV: %s", colName)
 		}
 	}
-	
-	var stations []route.Stop
+
+	var stations []api.StopSearchResult
 	for {
 		record, err := reader.Read()
 		if err == io.EOF {
@@ -90,11 +90,11 @@ func ParseStations(filePath string) ([]route.Stop, error) {
 				continue
 			}
 
-			station := route.Stop{
-				ID:           record[columnIndex["stop_id"]],
-				Name:         record[columnIndex["stop_name"]],
-				Lat:          lat,
-				Lon:          lon,
+			station := api.StopSearchResult{
+				StopId:   record[columnIndex["stop_id"]],
+				Name: record[columnIndex["stop_name"]],
+				Lat:  lat,
+				Lon:  lon,
 			}
 			stations = append(stations, station)
 		}
@@ -112,7 +112,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	db, err := sql.Open("sqlite3", route.DatabaseName)
+	db, err := sql.Open("sqlite3", "app.sqlite")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -129,9 +129,9 @@ func main() {
 	defer stmt.Close()
 
 	for i, stop := range stops {
-		_, err = stmt.Exec(stop.ID, stop.Name, stop.Lat, stop.Lon)
+		_, err = stmt.Exec(stop.StopId, stop.Name, stop.Lat, stop.Lon)
 		if err != nil {
-			log.Printf("Error inserting stop %d (%s): %v", i, stop.ID, err)
+			log.Printf("Error inserting stop %d (%s): %v", i, stop.StopId, err)
 			continue // Skip this stop and continue with the next
 		}
 	}
@@ -152,7 +152,7 @@ func main() {
 	if err != nil {
 		log.Printf("Error optimizing FTS index: %v", err)
 	}
-	
+
 	if err != nil {
 		log.Fatal(err)
 	}

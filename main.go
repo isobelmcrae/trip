@@ -1,10 +1,14 @@
 package main
 
 import (
-    tea "github.com/charmbracelet/bubbletea"
-    "github.com/joho/godotenv"
-    "github.com/isobelmcrae/trip/model"
-    "github.com/charmbracelet/log"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/log"
+	"github.com/isobelmcrae/trip/model"
+	"github.com/joho/godotenv"
+)
+
+const (
+    DatabaseName = "app.sqlite"
 )
 
 func main() {

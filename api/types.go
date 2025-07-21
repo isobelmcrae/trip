@@ -1,19 +1,15 @@
-package route
+package api
 
-/*
+import "database/sql"
 
-import (
-	"net/http"
-)
-
+// TripClientV1, for v1 of the API
 type TripClient struct {
-    BaseURL    string
-    apiKey     string
-    httpClient *http.Client
+    db *sql.DB // route searching
+    apiKey string
 }
 
 // stops
-type stopQuery struct {
+/* type stopQuery struct {
     OutputFormat      string `url:"outputFormat"`
     TypeSf            string `url:"type_sf"`
     NameSf            string `url:"name_sf"`
@@ -22,7 +18,7 @@ type stopQuery struct {
 
 type stopResponse struct {
     Stops []Stop `json:"locations"`
-}
+} */
 
 type Stop struct {
     ID           string `json:"id"`
@@ -31,11 +27,6 @@ type Stop struct {
     Modes        []int  `json:"modes"`
 }
 
-type alertQuery struct {
-    OutputFormat            string `url:"outputFormat"`
-    FilterPublicationStatus string `url:"filterPublicationStatus"`
-    Date                    string `url:"filterDateValid"`
-}
 
 type alertResponse struct {
     Infos struct {
@@ -68,6 +59,12 @@ type AffectedStops struct {
     ID   string `json:"id"`
     Name string `json:"name"`
     Type string `json:"type"`
+}
+
+type alertQuery struct {
+    OutputFormat            string `url:"outputFormat"`
+    FilterPublicationStatus string `url:"filterPublicationStatus"`
+    Date                    string `url:"filterDateValid"`
 }
 
 // tripPlan :3
@@ -138,5 +135,3 @@ type Destination struct {
     ID   string `json:"id"`
     Name string `json:"name"`
 }
-
-*/
