@@ -26,7 +26,7 @@ type RootModel struct {
 
 func InitaliseRootModel() (m *RootModel){
     // figure out what to do with this + other strings
-    var welcome = "trip v0.0.0\n\nsydney public transport for your terminal\n\nhjkl/arrow keys to move\nesc to go back, enter to select"
+    var welcome = "trip v0.0.0\n\nsydney public transport for your terminal\n\nhjkl/arrow keys to move\nesc to go back, enter to select\nctrl+c to exit"
 
     // create base flexbox cells
     m = &RootModel {

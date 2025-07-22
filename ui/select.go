@@ -54,6 +54,8 @@ func (s *selectState) Update(msg tea.Msg) (AppState, tea.Cmd){
                 // selecting origin/destination - idk how to adapt
                 if s.root.DestinationID == "" {
                     s.root.States.Push(newInputState(s.root, &s.root.DestinationID, "Where are you going?", "Enter destination stop..."))
+                } else {
+                    s.root.States.Push(newRouteState(s.root))
                 }
             }
             return s, cmd
