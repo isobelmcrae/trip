@@ -1,9 +1,14 @@
 package ui
 
 import (
+    "database/sql"
     "github.com/76creates/stickers/flexbox"
     tea "github.com/charmbracelet/bubbletea"
     "github.com/isobelmcrae/trip/styles"
+    "github.com/isobelmcrae/trip/api"
+    "github.com/isobelmcrae/trip/state"
+    "github.com/charmbracelet/log"
+    _ "github.com/mattn/go-sqlite3"
 )
 
 type RootModel struct {
@@ -12,6 +17,8 @@ type RootModel struct {
     flexBox *flexbox.FlexBox
 
     States StateStack
+
+    client *api.TripClient
 
     OriginID string
     DestinationID string
@@ -32,6 +39,13 @@ func InitaliseRootModel() (m *RootModel){
 
     m.flexBox.AddRows(rows)
     
+    db, err := sql.Open("sqlite3", state.DatabasePath)
+    if err != nil {
+        log.Fatal(err)
+    }
+    // defer db.Close()
+    m.client = api.NewClient(db)
+
     m.States.Push(newWelcomeState(m))
 
     return m
@@ -60,9 +74,9 @@ func (m *RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
         return m, nil
     }
     
-    oldStateSize := m.States.Length()
+    oldStateSize := m.States.Size()
     updatedState, cmd := current.Update(msg)
-    newStateSize := m.States.Length()
+    newStateSize := m.States.Size()
 
     if oldStateSize == newStateSize {
         m.States.states[len(m.States.states) - 1] = updatedState

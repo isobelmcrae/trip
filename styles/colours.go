@@ -18,7 +18,7 @@ const (
     T3Colour = lg.Color("#F37021")
     T4Colour = lg.Color("#005AA")
     T5Colour = lg.Color("#C4258F")
-    T6Colour = "" // TODO: Add T6 colour - not present on site
+    T6Colour = lg.Color("#7F3D1B")
     T7Colour = lg.Color("#6F818E")
     T8Colour = lg.Color("#00954C")
     T9Colour = lg.Color("#D11F2F")

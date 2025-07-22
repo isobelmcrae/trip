@@ -8,6 +8,9 @@ require (
 	github.com/charmbracelet/bubbletea v1.3.6
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/charmbracelet/log v0.4.2
+	github.com/flopp/go-staticmaps v0.0.0-20250629121348-973b17999e19
+	github.com/fogleman/gg v1.3.0
+	github.com/golang/geo v0.0.0-20250627182359-f4b81656db99
 	github.com/google/go-querystring v1.1.0
 	github.com/joho/godotenv v1.5.1
 	github.com/mattn/go-sqlite3 v1.14.28
@@ -22,11 +25,8 @@ require (
 	github.com/charmbracelet/x/term v0.2.1 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/flopp/go-coordsparser v0.0.0-20250311184423-61a7ff62d17c // indirect
-	github.com/flopp/go-staticmaps v0.0.0-20250629121348-973b17999e19 // indirect
-	github.com/fogleman/gg v1.3.0 // indirect
 	github.com/go-logfmt/logfmt v0.6.0 // indirect
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
-	github.com/golang/geo v0.0.0-20250627182359-f4b81656db99 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-localereader v0.0.1 // indirect

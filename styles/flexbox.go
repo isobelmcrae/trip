@@ -10,6 +10,9 @@ var (
 
 // flexbox internal content styles
 var (
+    Prompt = lg.NewStyle().
+        Bold(true).
+        Align(lg.Center)
     WelcomeMain = lg.NewStyle().
         AlignHorizontal(lg.Center).
         AlignVertical(lg.Center).
@@ -20,7 +23,7 @@ var (
     WelcomeSidebar = lg.NewStyle().
         PaddingRight(2).
         PaddingLeft(2).
-        PaddingTop(0).
+        PaddingTop(1).
         Inherit(Border)
     WelcomeSidebarContent = lg.NewStyle()
     LegBox = lg.NewStyle()

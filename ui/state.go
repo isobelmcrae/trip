@@ -11,9 +11,6 @@ type StateStack struct {
 }
 
 // A view of the app
-// not an interface unless we have view function?
-// but don't use view function as we only call view
-// on root model idk
 type AppState interface {
     Update(msg tea.Msg) (AppState, tea.Cmd)
     RenderCells(*flexbox.FlexBox)
@@ -26,8 +23,9 @@ func (s *StateStack) Push(state AppState) {
 
 // "Go back" - set the previous state of the app
 // as the current
+// Prevents user from showing a state before the welcome
 func (s *StateStack) Pop() AppState {
-    if len(s.states) == 0 {
+    if len(s.states) == 1 {
         return nil
     }
 
@@ -46,7 +44,8 @@ func (s *StateStack) Peek() AppState {
     return s.states[len(s.states) - 1]
 }
 
-func (s *StateStack) Length() int {
+// see how many states currently are on the stack
+func (s *StateStack) Size() int {
     return len(s.states)
 }
 

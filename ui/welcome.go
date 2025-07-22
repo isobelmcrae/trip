@@ -1,11 +1,10 @@
 package ui
 
 import (
-	"github.com/76creates/stickers/flexbox"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/isobelmcrae/trip/styles"
+    "github.com/76creates/stickers/flexbox"
+    "github.com/charmbracelet/bubbles/textinput"
+    tea "github.com/charmbracelet/bubbletea"
+    "github.com/isobelmcrae/trip/styles"
 )
 
 const welcome = "trip v0.0.0\n\nsydney public transport for your terminal\n\nhjkl/arrow keys to move\nenter to select"
@@ -22,7 +21,7 @@ func (s *welcomeState) Update(msg tea.Msg) (AppState, tea.Cmd){
     switch msg := msg.(type) {
     case tea.KeyMsg:
         if msg.Type == tea.KeyEnter {
-            s.root.States.Push(newSelectState(s.root))
+            s.root.States.Push(newSelectState(s.root, s.input.Value()))
             return s, cmd
         }
     }
@@ -30,19 +29,14 @@ func (s *welcomeState) Update(msg tea.Msg) (AppState, tea.Cmd){
     return s, cmd
 }
 
+// Update the main window and the sidebar's content
 func (s *welcomeState) RenderCells(f *flexbox.FlexBox) {
-    prompt := lipgloss.NewStyle().
-        PaddingLeft(1).
-        PaddingRight(1).
-        PaddingTop(1).
-        Bold(true).
-        Render("Where are you?")
-    
+    prompt := "Where are you?"
     sidebar := styles.WelcomeSidebarContent.Render(s.input.View())
     main := styles.WelcomeMainContent.Render(welcome)
 
     f.GetRow(0).GetCell(1).
-        SetContent(prompt + "\n\n" + sidebar).
+        SetContent(styles.Prompt.Render(prompt) + "\n\n" + sidebar).
         SetStyle(styles.WelcomeSidebar)
     f.GetRow(0).GetCell(0).SetContent(main).
         SetStyle(styles.WelcomeMain)
