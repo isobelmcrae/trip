@@ -5,12 +5,21 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/isobelmcrae/trip/ui"
 	"github.com/joho/godotenv"
+	"os" 
 )
 
 func main() {
-    log.SetLevel(log.DebugLevel)
-    err := godotenv.Load()
+    // log to file
+    f, err := os.OpenFile("trip.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
     if err != nil {
+	panic(err)
+    }
+    log.SetOutput(f)
+    log.SetLevel(log.DebugLevel)
+    log.SetReportCaller(true)
+
+    errenv := godotenv.Load()
+    if errenv != nil {
         log.Error("Error loading .env")
     }
 

@@ -18,13 +18,16 @@ type RootModel struct {
 
     States StateStack
 
-    client *api.TripClient
+    Client *api.TripClient
 
     OriginID string
     DestinationID string
 }
 
 func InitaliseRootModel() (m *RootModel){
+    // figure out what to do with this + other strings
+    var welcome = "trip v0.0.0\n\nsydney public transport for your terminal\n\nhjkl/arrow keys to move\nesc to go back, enter to select"
+
     // create base flexbox cells
     m = &RootModel {
         flexBox: flexbox.New(0,0),
@@ -44,9 +47,13 @@ func InitaliseRootModel() (m *RootModel){
         log.Fatal(err)
     }
     // defer db.Close()
-    m.client = api.NewClient(db)
+    m.Client = api.NewClient(db)
 
-    m.States.Push(newWelcomeState(m))
+    m.States.Push(newInputState(m, &m.OriginID, "Where are you?", "test"))
+
+    main := styles.WelcomeMainContent.Render(welcome)
+    m.flexBox.GetRow(0).GetCell(0).SetContent(main).
+        SetStyle(styles.WelcomeMain)
 
     return m
 }
@@ -58,6 +65,8 @@ func (m *RootModel) Init() tea.Cmd {
 }
 
 func (m *RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+    var cmd tea.Cmd
+
     switch msg := msg.(type) {
     case tea.WindowSizeMsg:
         m.flexBox.SetWidth(msg.Width)
@@ -66,6 +75,9 @@ func (m *RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
         switch msg.Type {
         case tea.KeyCtrlC:
             return m, tea.Quit
+        case tea.KeyEsc:
+            m.States.Pop()
+            return m, cmd
         }
     }
 
