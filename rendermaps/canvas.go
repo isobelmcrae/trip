@@ -134,19 +134,19 @@ func (c *Canvas) Frame() string {
 	var sb strings.Builder
 	// no colour
 	
-	//termReset := "\x1B[0m"
-	//currentColor := ""
+	termReset := "\x1B[0m"
+	currentColor := ""
 	for y := 0; y < c.height/4; y++ {
 		for x := 0; x < c.width/2; x++ {
 			idx := x + y*(c.width/2)
-			/* colorCode := c.colorBuffer[idx]
+			colorCode := c.colorBuffer[idx]
 			if colorCode != currentColor {
 				sb.WriteString(termReset)
 				if colorCode != "" {
 					sb.WriteString(colorCode)
 				}
 				currentColor = colorCode
-			} */
+			}
 			if char, ok := c.charBuffer[idx]; ok {
 				sb.WriteRune(char)
 			} else if pixelVal := c.pixelBuffer[idx]; pixelVal > 0 {
@@ -155,8 +155,8 @@ func (c *Canvas) Frame() string {
 				sb.WriteRune(' ')
 			}
 		}
-		//sb.WriteString(termReset)
-		//currentColor = ""
+		sb.WriteString(termReset)
+		currentColor = ""
 		if y < c.height/4-1 {
 			sb.WriteRune('\n')
 		}

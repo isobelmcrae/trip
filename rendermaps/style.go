@@ -1,441 +1,328 @@
 package rendermaps
 
 import (
-	"bytes"
-	"compress/gzip"
 	"encoding/json"
 	"fmt"
-	"io"
-	"log"
-	"math"
-	"net/http"
-	"strings"
-	"sync"
-	"time"
-
-	"github.com/mattn/go-runewidth"
-	"github.com/paulmach/orb"
-	"github.com/paulmach/orb/encoding/mvt"
-	"github.com/paulmach/orb/geojson"
-	"github.com/tidwall/rtree"
+	"reflect"
 
 	_ "embed"
+
+	"github.com/paulmach/orb/geojson"
 )
-
-// parser and compiler ofr Mapbox Map Style files
-// https://www.mapbox.com/mapbox-gl-style-spec/
-
-type StyledFeature struct {
-	Geometry     orb.Geometry
-	Style        *StyleLayer
-	Color, Label string
-}
-
-type Tile struct {
-	mvt.Layer
-	Rtree *rtree.RTree
-}
-
-type TileSource struct {
-	url        string
-	styler     *Styler
-	client     *http.Client
-	cache      map[string]*Tile
-	colorCache map[string]string
-	mu         sync.Mutex
-}
-
-//go:embed style.json
-var styleJson []byte
-
-var (
-	gStyler = makeNewStyler()
-	gTs = NewTileSource(TileSourceURL, gStyler)
-)
-
-func makeNewStyler() (*Styler) {
-	styler, err := NewStyler(styleJson)
-	if err != nil {
-		log.Panicf("Failed to load embedded style file': %v", err)
-	}
-	return styler
-}
-
-// TODO migrate to cache directory
-
-func NewTileSource(url string, styler *Styler) *TileSource {
-	return &TileSource{
-		url: url, client: &http.Client{Timeout: 10 * time.Second}, styler: styler,
-		cache: make(map[string]*Tile), colorCache: make(map[string]string),
-	}
-}
-
-func (ts *TileSource) GetTile(z, x, y int) (*Tile, error) {
-	var err error
-	var tile *Tile
-	var ok bool
-	
-	key := fmt.Sprintf("%d-%d-%d", z, x, y)
-
-	bench := time.Now()
-	ts.mu.Lock()
-	if tile, ok = ts.cache[key]; ok {
-		ts.mu.Unlock()
-		// cached
-	} else {
-		ts.mu.Unlock()
-		var body []byte
-
-		if body, err = cacheGetKey(key); err == nil {
-			// cached
-		} else {
-			url := fmt.Sprintf("%s%d/%d/%d.pbf", ts.url, z, x, y)
-			req, _ := http.NewRequest("GET", url, nil)
-			req.Header.Set("User-Agent", "MapSCII-Go-MVP/1.0")
-			resp, err := ts.client.Do(req)
-			if err != nil {
-				return nil, err
-			}
-			defer resp.Body.Close()
-			body, err = io.ReadAll(resp.Body)
-			if err != nil {
-				return nil, err
-			}
-			cacheInsertKey(key, body) // cache the response
-		}
-
-		ts.mu.Lock()
-		tile = &Tile{Rtree: &rtree.RTree{}}
-		if err := tile.Load(body, ts.styler, ts.colorCache); err != nil {
-			return &Tile{Rtree: &rtree.RTree{}}, nil
-		}
-
-		ts.cache[key] = tile
-		ts.mu.Unlock()
-	}
-
-	fmt.Printf("  [Tile.GetTile] Loaded tile %d/%d/%d in %s\n", z, x, y, time.Since(bench))
-	return tile, nil
-}
-
-func (t *Tile) Load(buffer []byte, styler *Styler, colorCache map[string]string) error {
-	gz, err := gzip.NewReader(bytes.NewReader(buffer))
-	var data []byte
-	if err == nil {
-		data, err = io.ReadAll(gz)
-		gz.Close()
-	} else {
-		data = buffer
-	}
-	if err != nil {
-		return err
-	}
-	layers, err := mvt.Unmarshal(data)
-	if err != nil {
-		return err
-	}
-	for _, layer := range layers {
-		featureAddedCount := 0 // <-- ADD THIS
-		for _, feature := range layer.Features {
-			if feature.Properties == nil {
-				feature.Properties = make(map[string]interface{})
-			}
-
-			switch feature.Geometry.(type) {
-			case orb.Point, orb.MultiPoint:
-				feature.Properties["$type"] = "Point"
-			case orb.LineString, orb.MultiLineString:
-				feature.Properties["$type"] = "LineString"
-			case orb.Polygon, orb.MultiPolygon:
-				feature.Properties["$type"] = "Polygon"
-			}
-			// END ADDED BLOCK
-
-			style := styler.GetStyleFor(layer.Name, feature)
-			if style == nil {
-				continue
-			}
-			featureAddedCount++ // <-- ADD THIS
-			colorStr := style.GetPaintProperty("line-color", style.GetPaintProperty("fill-color", "#ffffff"))
-			colorCode, ok := colorCache[colorStr]
-			if !ok {
-				colorCode = hexToANSI(colorStr)
-				colorCache[colorStr] = colorCode
-			}
-			label, _ := feature.Properties["name"].(string)
-			styledFeat := &StyledFeature{
-				Geometry: feature.Geometry, Style: style, Color: colorCode, Label: label,
-			}
-			bounds := feature.Geometry.Bound()
-			t.Rtree.Insert([2]float64{bounds.Min.X(), bounds.Min.Y()}, [2]float64{bounds.Max.X(), bounds.Max.Y()}, styledFeat)
-		}
-	}
-	if len(layers) > 0 {
-		t.Layer = *layers[0]
-	}
-	return nil
-}
 
 type StyleLayer struct {
-	ID          string                 `json:"id"`
-	Type        string                 `json:"type"`
-	SourceLayer string                 `json:"source-layer"` // <-- FIX HERE
-	Ref         string                 `json:"ref"`
-	Filter      []interface{}          `json:"filter"`
-	Paint       map[string]interface{} `json:"paint"`
-	MinZoom     float64                `json:"minzoom"` // <-- FIX HERE
-	MaxZoom     float64                `json:"maxzoom"` // <-- FIX HERE
-	AppliesTo   func(feature *geojson.Feature) bool `json:"-"` // Ignore this field for JSON
+	ID          string         `json:"id"`
+	Ref         string         `json:"ref"`
+	Type        string         `json:"type"`
+	SourceLayer string         `json:"source-layer"`
+	MinZoom     float64        `json:"minzoom"`
+	MaxZoom     float64        `json:"maxzoom"`
+	Filter      []any          `json:"filter"`
+	Paint       map[string]any `json:"paint"`
+	Layout      map[string]any `json:"layout"`
+
+	AppliesTo FilterFunc
 }
 
-func (sl *StyleLayer) GetPaintProperty(key, fallback string) string {
-	if sl.Paint == nil {
-		return fallback
-	}
-	if val, ok := sl.Paint[key].(string); ok {
-		return val
-	}
-	return fallback
+type styleJSON struct {
+	Name      string            `json:"name"`
+	Constants map[string]string `json:"constants"`
+	Layers    []json.RawMessage `json:"layers"`
 }
 
 type Styler struct {
+	styleByID    map[string]*StyleLayer
 	styleByLayer map[string][]*StyleLayer
+	StyleName    string
 }
 
-func NewStyler(data []byte) (*Styler, error) {
-	var styleDef struct {
-		Layers []*StyleLayer `json:"layers"`
-	}
-	if err := json.Unmarshal(data, &styleDef); err != nil {
-		return nil, err
+func NewStyler(styleData []byte) (*Styler, error) {
+	var s styleJSON
+	if err := json.Unmarshal(styleData, &s); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal style: %w", err)
 	}
 
-	s := &Styler{styleByLayer: make(map[string][]*StyleLayer)}
-	styleByID := make(map[string]*StyleLayer)
-	for _, layer := range styleDef.Layers { // This is fine for populating the map
-		styleByID[layer.ID] = layer
+	styler := &Styler{
+		styleByID:    make(map[string]*StyleLayer),
+		styleByLayer: make(map[string][]*StyleLayer),
+		StyleName:    s.Name,
 	}
 
-	// --- THIS IS THE PART TO CHANGE ---
-	for i := range styleDef.Layers {
-		layer := styleDef.Layers[i] // layer is now a pointer to the actual slice element
+	if s.Constants == nil {
+		s.Constants = make(map[string]string)
+	}
 
+	for _, rawLayer := range s.Layers {
+		// 1. Replace constants in the raw JSON of the layer.
+		processedLayerBytes, err := replaceConstantsInJSON(s.Constants, rawLayer)
+		if err != nil {
+			return nil, fmt.Errorf("failed to replace constants for layer: %w", err)
+		}
+
+		var layer StyleLayer
+		if err := json.Unmarshal(processedLayerBytes, &layer); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal layer from %s: %w", string(processedLayerBytes), err)
+		}
+
+		// 2. Handle layer referencing (`ref` property).
 		if layer.Ref != "" {
-			if ref, ok := styleByID[layer.Ref]; ok {
+			if refLayer, ok := styler.styleByID[layer.Ref]; ok {
+				// Inherit properties from the referenced layer if they are not set.
 				if layer.Type == "" {
-					layer.Type = ref.Type
+					layer.Type = refLayer.Type
 				}
 				if layer.SourceLayer == "" {
-					layer.SourceLayer = ref.SourceLayer
+					layer.SourceLayer = refLayer.SourceLayer
+				}
+				if layer.MinZoom == 0 && refLayer.MinZoom != 0 {
+					layer.MinZoom = refLayer.MinZoom
+				}
+				if layer.MaxZoom == 0 && refLayer.MaxZoom != 0 {
+					layer.MaxZoom = refLayer.MaxZoom
 				}
 				if layer.Filter == nil {
-					layer.Filter = ref.Filter
-				}
-                // Also copy paint properties for refs
-				if layer.Paint == nil {
-					layer.Paint = ref.Paint
+					layer.Filter = refLayer.Filter
 				}
 			}
 		}
-		layer.AppliesTo = compileFilter(layer.Filter)
-		s.styleByLayer[layer.SourceLayer] = append(s.styleByLayer[layer.SourceLayer], layer)
+
+		// 3. Compile the filter expression into a function.
+		layer.AppliesTo, err = CompileFilter(layer.Filter)
+		if err != nil {
+			fmt.Printf("Warning: failed to compile filter for layer %s: %v. Defaulting to match-all.\n", layer.ID, err)
+			layer.AppliesTo = func(f *geojson.Feature) bool { return true }
+		}
+
+		// 4. Index the processed layer for fast lookup.
+		if layer.SourceLayer != "" {
+			styler.styleByLayer[layer.SourceLayer] = append(styler.styleByLayer[layer.SourceLayer], &layer)
+		}
+		styler.styleByID[layer.ID] = &layer
 	}
-	return s, nil
+
+	return styler, nil
 }
 
-func (s *Styler) GetStyleFor(layerName string, feature *geojson.Feature) *StyleLayer {
-	styles, ok := s.styleByLayer[layerName]
+// can return nil
+func (s *Styler) GetStyleFor(sourceLayerName string, feature *geojson.Feature) *StyleLayer {
+	layers, ok := s.styleByLayer[sourceLayerName]
 	if !ok {
 		return nil
 	}
 
-	for _, style := range styles {
-		if style.AppliesTo(feature) {
-			return style
+	for _, layer := range layers {
+		if layer.AppliesTo(feature) {
+			return layer
 		}
 	}
+
 	return nil
 }
 
-// compileFilter recursively compiles a Mapbox GL filter expression into a function.
-func compileFilter(filter []interface{}) func(f *geojson.Feature) bool {
-	// If the filter is empty or nil, it passes all features.
+func (l *StyleLayer) GetPaintProperty(key string, defaultValue string) string {
+	if l.Paint == nil {
+		return defaultValue
+	}
+	if value, ok := l.Paint[key]; ok {
+		if strValue, isString := value.(string); isString {
+			return strValue
+		}
+	}
+	return defaultValue
+}
+
+func replaceConstantsInJSON(constants map[string]string, raw json.RawMessage) (json.RawMessage, error) {
+	var node any
+	if err := json.Unmarshal(raw, &node); err != nil {
+		return nil, err
+	}
+	doReplace(constants, node)
+	return json.Marshal(node)
+}
+
+func doReplace(constants map[string]string, node any) {
+	switch n := node.(type) {
+	case map[string]any:
+		for key, val := range n {
+			if strVal, ok := val.(string); ok && len(strVal) > 0 && strVal[0] == '@' {
+				if constVal, found := constants[strVal]; found {
+					n[key] = constVal
+				}
+			} else {
+				doReplace(constants, val) // Recurse
+			}
+		}
+	case []any:
+		for _, item := range n {
+			doReplace(constants, item) // Recurse
+		}
+	}
+}
+
+type FilterFunc func(feature *geojson.Feature) bool
+
+func CompileFilter(filter []any) (FilterFunc, error) {
 	if len(filter) == 0 {
-		return func(*geojson.Feature) bool { return true }
+		return func(f *geojson.Feature) bool { return true }, nil
 	}
 
-	// The first element should be the operator string.
 	op, ok := filter[0].(string)
 	if !ok {
-		// This is a malformed filter; fail open to match the original JS.
-		return func(*geojson.Feature) bool { return true }
+		return nil, fmt.Errorf("filter operator must be a string, got %T", filter[0])
 	}
 
 	switch op {
-	// Recursive cases
 	case "all":
-		var subFilters []func(*geojson.Feature) bool
-		for _, subFilterExpr := range filter[1:] {
-			if sub, ok := subFilterExpr.([]interface{}); ok {
-				subFilters = append(subFilters, compileFilter(sub))
-			}
+		subFilters, err := compileSubFilters(filter)
+		if err != nil {
+			return nil, err
 		}
 		return func(f *geojson.Feature) bool {
-			for _, subf := range subFilters {
-				if !subf(f) {
-					return false // short-circuit on first failure
+			for _, sf := range subFilters {
+				if !sf(f) {
+					return false
 				}
 			}
 			return true
-		}
+		}, nil
+
 	case "any":
-		var subFilters []func(*geojson.Feature) bool
-		for _, subFilterExpr := range filter[1:] {
-			if sub, ok := subFilterExpr.([]interface{}); ok {
-				subFilters = append(subFilters, compileFilter(sub))
-			}
+		subFilters, err := compileSubFilters(filter)
+		if err != nil {
+			return nil, err
 		}
 		return func(f *geojson.Feature) bool {
-			for _, subf := range subFilters {
-				if subf(f) {
-					return true // short-circuit on first success
+			for _, sf := range subFilters {
+				if sf(f) {
+					return true
 				}
 			}
 			return false
-		}
+		}, nil
+
 	case "none":
-		var subFilters []func(*geojson.Feature) bool
-		for _, subFilterExpr := range filter[1:] {
-			if sub, ok := subFilterExpr.([]interface{}); ok {
-				subFilters = append(subFilters, compileFilter(sub))
-			}
+		subFilters, err := compileSubFilters(filter)
+		if err != nil {
+			return nil, err
 		}
 		return func(f *geojson.Feature) bool {
-			for _, subf := range subFilters {
-				if subf(f) {
-					return false // short-circuit on first success (as it's a "none" check)
+			for _, sf := range subFilters {
+				if sf(f) {
+					return false
 				}
 			}
 			return true
-		}
+		}, nil
 
-	// Base cases
-	case "==":
-		if len(filter) < 3 { return func(*geojson.Feature) bool { return false } }
-		key, _ := filter[1].(string)
+	case "==", "!=":
+		if len(filter) != 3 {
+			return nil, fmt.Errorf("'%s' filter expects 2 arguments, got %d", op, len(filter)-1)
+		}
+		key, ok := filter[1].(string)
+		if !ok {
+			return nil, fmt.Errorf("'%s' filter key must be a string, got %T", op, filter[1])
+		}
 		val := filter[2]
 		return func(f *geojson.Feature) bool {
-			propVal, propOk := f.Properties[key]
-			if !propOk {
-				return false // Property doesn't exist, can't be equal
+			prop, exists := f.Properties[key]
+			isEqual := exists && reflect.DeepEqual(prop, val)
+			if op == "==" {
+				return isEqual
 			}
-			// Handle case where JSON numbers are float64
-			if prop, ok := propVal.(float64); ok {
-				if v, ok := val.(float64); ok { return prop == v }
-				if v, ok := val.(int); ok { return prop == float64(v) }
-			}
-			return propVal == val
+			return !isEqual
+		}, nil
+
+	case ">", ">=", "<", "<=":
+		if len(filter) != 3 {
+			return nil, fmt.Errorf("'%s' filter expects 2 arguments", op)
 		}
-	case "!=":
-		if len(filter) < 3 { return func(*geojson.Feature) bool { return false } }
-		key, _ := filter[1].(string)
-		val := filter[2]
+		key, ok := filter[1].(string)
+		if !ok {
+			return nil, fmt.Errorf("'%s' filter key must be a string", op)
+		}
+		filterVal, ok := filter[2].(float64) // JSON numbers are parsed as float64
+		if !ok {
+			return nil, fmt.Errorf("'%s' filter value must be a number, got %T", op, filter[2])
+		}
 		return func(f *geojson.Feature) bool {
-			// Handle case where JSON numbers are float64
-			if prop, ok := f.Properties[key].(float64); ok {
-				if v, ok := val.(float64); ok { return prop != v }
-				if v, ok := val.(int); ok { return prop != float64(v) }
+			prop, exists := f.Properties[key]
+			if !exists {
+				return false
 			}
-			return f.Properties[key] != val
+			propVal, ok := prop.(float64)
+			if !ok { // Property exists but is not a number
+				return false
+			}
+			switch op {
+			case ">":
+				return propVal > filterVal
+			case ">=":
+				return propVal >= filterVal
+			case "<":
+				return propVal < filterVal
+			case "<=":
+				return propVal <= filterVal
+			}
+			return false
+		}, nil
+
+	case "in", "!in":
+		if len(filter) < 3 {
+			return nil, fmt.Errorf("'%s' filter expects at least 2 arguments", op)
 		}
-	case "in":
-		if len(filter) < 3 { return func(*geojson.Feature) bool { return false } }
-		key, _ := filter[1].(string)
-		values := make(map[interface{}]bool)
+		key, ok := filter[1].(string)
+		if !ok {
+			return nil, fmt.Errorf("'%s' filter key must be a string", op)
+		}
+		values := make(map[any]struct{})
 		for _, v := range filter[2:] {
-			values[v] = true
+			values[v] = struct{}{}
 		}
 		return func(f *geojson.Feature) bool {
-			prop, ok := f.Properties[key]
-			return ok && values[prop]
+			prop, exists := f.Properties[key]
+			if !exists {
+				return op == "!in" // 'in' is false, '!in' is true if key is missing
+			}
+			_, found := values[prop]
+			if op == "in" {
+				return found
+			}
+			return !found
+		}, nil
+
+	case "has", "!has":
+		if len(filter) != 2 {
+			return nil, fmt.Errorf("'%s' filter expects 1 argument", op)
 		}
-	case "!in":
-		if len(filter) < 3 { return func(*geojson.Feature) bool { return false } }
-		key, _ := filter[1].(string)
-		values := make(map[interface{}]bool)
-		for _, v := range filter[2:] {
-			values[v] = true
+		key, ok := filter[1].(string)
+		if !ok {
+			return nil, fmt.Errorf("'%s' filter key must be a string", op)
 		}
 		return func(f *geojson.Feature) bool {
-			prop, ok := f.Properties[key]
-			return !ok || !values[prop]
-		}
-	case "has":
-		if len(filter) < 2 { return func(*geojson.Feature) bool { return false } }
-		key, _ := filter[1].(string)
-		return func(f *geojson.Feature) bool {
-			_, ok := f.Properties[key]
-			return ok
-		}
-	case "!has":
-		if len(filter) < 2 { return func(*geojson.Feature) bool { return false } }
-		key, _ := filter[1].(string)
-		return func(f *geojson.Feature) bool {
-			_, ok := f.Properties[key]
-			return !ok
-		}
+			_, exists := f.Properties[key]
+			if op == "has" {
+				return exists
+			}
+			return !exists
+		}, nil
 
 	default:
-		// For any unknown operator, pass all features.
-		return func(*geojson.Feature) bool { return true }
+		return nil, fmt.Errorf("unsupported filter operator: %s", op)
 	}
 }
 
-type LabelBuffer struct {
-	tree *rtree.RTree
-}
-
-func NewLabelBuffer() *LabelBuffer {
-	return &LabelBuffer{tree: &rtree.RTree{}}
-}
-
-func (lb *LabelBuffer) WriteIfPossible(text string, x, y int) bool {
-	width := runewidth.StringWidth(text)
-	bounds := [2][2]float64{{float64(x - 1), float64(y - 1)}, {float64(x + width + 1), float64(y + 1)}}
-	var collision bool
-	lb.tree.Search(bounds[0], bounds[1], func(_, _ [2]float64, _ interface{}) bool {
-		collision = true
-		return false
-	})
-	if !collision {
-		lb.tree.Insert(bounds[0], bounds[1], text)
-		return true
+func compileSubFilters(filter []any) ([]FilterFunc, error) {
+	subFilters := make([]FilterFunc, 0, len(filter)-1)
+	for i, subFilterExpr := range filter[1:] {
+		expr, ok := subFilterExpr.([]any)
+		if !ok {
+			return nil, fmt.Errorf("sub-filter at index %d is not a valid expression", i)
+		}
+		subFilter, err := CompileFilter(expr)
+		if err != nil {
+			return nil, err
+		}
+		subFilters = append(subFilters, subFilter)
 	}
-	return false
-}
-
-func baseZoom(zoom float64) int {
-	return int(math.Floor(zoom))
-}
-
-func tilesizeAtZoom(zoom float64) float64 {
-	return ProjectSize * math.Pow(2, zoom-float64(baseZoom(zoom)))
-}
-
-func ll2tile(lon, lat float64, zoom int) (float64, float64) {
-	latRad := lat * math.Pi / 180
-	n := math.Pow(2, float64(zoom))
-	xtile := (lon + 180) / 360 * n
-	ytile := (1 - math.Asinh(math.Tan(latRad))/math.Pi) / 2 * n
-	return xtile, ytile
-}
-
-func hexToANSI(hex string) string {
-	hex = strings.TrimPrefix(hex, "#")
-	if len(hex) == 3 {
-		hex = string([]byte{hex[0], hex[0], hex[1], hex[1], hex[2], hex[2]})
-	}
-	var r, g, b uint8
-	fmt.Sscanf(hex, "%02x%02x%02x", &r, &g, &b)
-	return fmt.Sprintf("\x1b[38;2;%d;%d;%dm", r, g, b)
+	return subFilters, nil
 }

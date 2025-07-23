@@ -1,7 +1,6 @@
 package rendermaps
 
 import (
-	"fmt"
 	"math"
 	"sync"
 
@@ -75,14 +74,11 @@ func RenderMap(width, height int, lat, lon float64, zoom float64) (string, error
 
 	// 4. Rendering: Draw features from each tile onto the canvas in a specific order.
 	drawOrder := []string{"landuse", "water", "building", "road", "admin", "place_label", "poi_label"}
-	fmt.Println("--- Starting Rendering Loop ---") // <-- ADD THIS
 	for _, layerName := range drawOrder {
 		for _, job := range jobs {
-			fmt.Printf("Attempting to render layer '%s' for tile at pos %v\n", layerName, job.pos)
 			renderTileLayer(canvas, labelBuffer, job.tile, job.pos, tileSize, zoom, layerName)
 		}
 	}
-	fmt.Println("--- Finished Rendering Loop ---") // <-- ADD THIS
 	// 5. Final Output: Convert the canvas's pixel buffer into a printable string.
 	return canvas.Frame(), nil
 }
