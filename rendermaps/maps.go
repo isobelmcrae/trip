@@ -10,7 +10,6 @@ import (
 
 const (
 	TileSourceURL = "http://mapscii.me/"
-	StyleFile     = "style.json" // Assumes style file is in the same directory
 	POIMarker     = "◉"
 	MaxZoom       = 18.0
 	MinZoom       = 1.0
@@ -20,13 +19,8 @@ const (
 
 func RenderMap(width, height int, lat, lon float64, zoom float64) (string, error) {
 	// 1. Setup: Load style, create tile source, and prepare the canvas.
-	styler, err := newStyler(StyleFile)
-	if err != nil {
-		return "", err
-	}
-	tileSource := newTileSource(TileSourceURL, styler)
-	canvas := newCanvas(width*2, height*4) // Canvas is in pixels (2x4 per char)
-	labelBuffer := newLabelBuffer()
+	canvas := NewCanvas(width*2, height*4) // Canvas is in pixels (2x4 per char)
+	labelBuffer := NewLabelBuffer()
 
 	// 2. Tile Calculation: Determine which tiles are visible in the viewport.
 	z := baseZoom(zoom)
@@ -57,7 +51,7 @@ func RenderMap(width, height int, lat, lon float64, zoom float64) (string, error
 			wg.Add(1)
 			go func(z, x, y int, tx, ty float64) {
 				defer wg.Done()
-				tile, err := tileSource.GetTile(z, x, y)
+				tile, err := gTs.GetTile(z, x, y)
 				if err == nil {
 					pos := orb.Point{
 						float64(canvas.width)/2 - (centerX-tx)*tileSize,
@@ -79,11 +73,9 @@ func RenderMap(width, height int, lat, lon float64, zoom float64) (string, error
 		jobs = append(jobs, job)
 	}
 
-	fmt.Printf("jobs: %+v\n", jobs)
-
 	// 4. Rendering: Draw features from each tile onto the canvas in a specific order.
 	drawOrder := []string{"landuse", "water", "building", "road", "admin", "place_label", "poi_label"}
-		fmt.Println("--- Starting Rendering Loop ---") // <-- ADD THIS
+	fmt.Println("--- Starting Rendering Loop ---") // <-- ADD THIS
 	for _, layerName := range drawOrder {
 		for _, job := range jobs {
 			fmt.Printf("Attempting to render layer '%s' for tile at pos %v\n", layerName, job.pos)

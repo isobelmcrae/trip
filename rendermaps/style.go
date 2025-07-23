@@ -5,7 +5,8 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
+	"log"
 	"math"
 	"net/http"
 	"strings"
@@ -17,7 +18,12 @@ import (
 	"github.com/paulmach/orb/encoding/mvt"
 	"github.com/paulmach/orb/geojson"
 	"github.com/tidwall/rtree"
+
+	_ "embed"
 )
+
+// parser and compiler ofr Mapbox Map Style files
+// https://www.mapbox.com/mapbox-gl-style-spec/
 
 type StyledFeature struct {
 	Geometry     orb.Geometry
@@ -39,7 +45,25 @@ type TileSource struct {
 	mu         sync.Mutex
 }
 
-func newTileSource(url string, styler *Styler) *TileSource {
+//go:embed style.json
+var styleJson []byte
+
+var (
+	gStyler = makeNewStyler()
+	gTs = NewTileSource(TileSourceURL, gStyler)
+)
+
+func makeNewStyler() (*Styler) {
+	styler, err := NewStyler(styleJson)
+	if err != nil {
+		log.Panicf("Failed to load embedded style file': %v", err)
+	}
+	return styler
+}
+
+// TODO migrate to cache directory
+
+func NewTileSource(url string, styler *Styler) *TileSource {
 	return &TileSource{
 		url: url, client: &http.Client{Timeout: 10 * time.Second}, styler: styler,
 		cache: make(map[string]*Tile), colorCache: make(map[string]string),
@@ -47,32 +71,50 @@ func newTileSource(url string, styler *Styler) *TileSource {
 }
 
 func (ts *TileSource) GetTile(z, x, y int) (*Tile, error) {
+	var err error
+	var tile *Tile
+	var ok bool
+	
 	key := fmt.Sprintf("%d-%d-%d", z, x, y)
+
+	bench := time.Now()
 	ts.mu.Lock()
-	if tile, ok := ts.cache[key]; ok {
+	if tile, ok = ts.cache[key]; ok {
 		ts.mu.Unlock()
-		return tile, nil
+		// cached
+	} else {
+		ts.mu.Unlock()
+		var body []byte
+
+		if body, err = cacheGetKey(key); err == nil {
+			// cached
+		} else {
+			url := fmt.Sprintf("%s%d/%d/%d.pbf", ts.url, z, x, y)
+			req, _ := http.NewRequest("GET", url, nil)
+			req.Header.Set("User-Agent", "MapSCII-Go-MVP/1.0")
+			resp, err := ts.client.Do(req)
+			if err != nil {
+				return nil, err
+			}
+			defer resp.Body.Close()
+			body, err = io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, err
+			}
+			cacheInsertKey(key, body) // cache the response
+		}
+
+		ts.mu.Lock()
+		tile = &Tile{Rtree: &rtree.RTree{}}
+		if err := tile.Load(body, ts.styler, ts.colorCache); err != nil {
+			return &Tile{Rtree: &rtree.RTree{}}, nil
+		}
+
+		ts.cache[key] = tile
+		ts.mu.Unlock()
 	}
-	ts.mu.Unlock()
-	url := fmt.Sprintf("%s%d/%d/%d.pbf", ts.url, z, x, y)
-	req, _ := http.NewRequest("GET", url, nil)
-	req.Header.Set("User-Agent", "MapSCII-Go-MVP/1.0")
-	resp, err := ts.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	tile := &Tile{Rtree: &rtree.RTree{}}
-	if err := tile.Load(body, ts.styler, ts.colorCache); err != nil {
-		return &Tile{Rtree: &rtree.RTree{}}, nil
-	}
-	ts.mu.Lock()
-	ts.cache[key] = tile
-	ts.mu.Unlock()
+
+	fmt.Printf("  [Tile.GetTile] Loaded tile %d/%d/%d in %s\n", z, x, y, time.Since(bench))
 	return tile, nil
 }
 
@@ -80,7 +122,7 @@ func (t *Tile) Load(buffer []byte, styler *Styler, colorCache map[string]string)
 	gz, err := gzip.NewReader(bytes.NewReader(buffer))
 	var data []byte
 	if err == nil {
-		data, err = ioutil.ReadAll(gz)
+		data, err = io.ReadAll(gz)
 		gz.Close()
 	} else {
 		data = buffer
@@ -92,14 +134,13 @@ func (t *Tile) Load(buffer []byte, styler *Styler, colorCache map[string]string)
 	if err != nil {
 		return err
 	}
-		fmt.Printf("  [Tile.Load] Tile contains %d layers. Processing...\n", len(layers)) // <-- ADD THIS
 	for _, layer := range layers {
-		fmt.Printf("    [Tile.Load] Processing layer: '%s' with %d features.\n", layer.Name, len(layer.Features))
 		featureAddedCount := 0 // <-- ADD THIS
 		for _, feature := range layer.Features {
 			if feature.Properties == nil {
 				feature.Properties = make(map[string]interface{})
 			}
+
 			switch feature.Geometry.(type) {
 			case orb.Point, orb.MultiPoint:
 				feature.Properties["$type"] = "Point"
@@ -112,9 +153,6 @@ func (t *Tile) Load(buffer []byte, styler *Styler, colorCache map[string]string)
 
 			style := styler.GetStyleFor(layer.Name, feature)
 			if style == nil {
-				if layer.Name == "water" {
-					fmt.Printf("      - Style NOT FOUND for feature in layer '%s' with props: %v\n", layer.Name, feature.Properties)
-				}
 				continue
 			}
 			featureAddedCount++ // <-- ADD THIS
@@ -129,12 +167,7 @@ func (t *Tile) Load(buffer []byte, styler *Styler, colorCache map[string]string)
 				Geometry: feature.Geometry, Style: style, Color: colorCode, Label: label,
 			}
 			bounds := feature.Geometry.Bound()
-			fmt.Printf("      - Style '%s' FOUND. Inserting feature into R-Tree for layer '%s'.\n", style.ID, layer.Name)
 			t.Rtree.Insert([2]float64{bounds.Min.X(), bounds.Min.Y()}, [2]float64{bounds.Max.X(), bounds.Max.Y()}, styledFeat)
-		}
-		// ADD THIS
-		if featureAddedCount > 0 {
-			fmt.Printf("    [Tile.Load] Finished processing layer '%s', ADDED %d features to R-Tree.\n", layer.Name, featureAddedCount)
 		}
 	}
 	if len(layers) > 0 {
@@ -169,11 +202,7 @@ type Styler struct {
 	styleByLayer map[string][]*StyleLayer
 }
 
-func newStyler(stylePath string) (*Styler, error) {
-	data, err := ioutil.ReadFile(stylePath)
-	if err != nil {
-		return nil, err
-	}
+func NewStyler(data []byte) (*Styler, error) {
 	var styleDef struct {
 		Layers []*StyleLayer `json:"layers"`
 	}
@@ -215,23 +244,15 @@ func newStyler(stylePath string) (*Styler, error) {
 }
 
 func (s *Styler) GetStyleFor(layerName string, feature *geojson.Feature) *StyleLayer {
-	// Let's first check if there are ANY styles for this layer name
 	styles, ok := s.styleByLayer[layerName]
 	if !ok {
-		// This will tell us if the layerName itself is the problem
-		fmt.Printf("    -> No styles registered for source-layer '%s'\n", layerName)
 		return nil
 	}
 
 	for _, style := range styles {
-		// ADD THIS LOGGING BLOCK
-		fmt.Printf("    - Checking style '%s' (filter: %v)... ", style.ID, style.Filter)
 		if style.AppliesTo(feature) {
-			fmt.Println("MATCH!")
 			return style
 		}
-		fmt.Println("NO MATCH.")
-		// END LOGGING BLOCK
 	}
 	return nil
 }
@@ -305,10 +326,6 @@ func compileFilter(filter []interface{}) func(f *geojson.Feature) bool {
 		val := filter[2]
 		return func(f *geojson.Feature) bool {
 			propVal, propOk := f.Properties[key]
-			// ADD THIS
-			if key == "$type" {
-				fmt.Printf(`      Filter: ["==", "%s", "%v"] -> Feature has '%s': %v. Result: %t`+"\n", key, val, key, propVal, propOk && propVal == val)
-			}
 			if !propOk {
 				return false // Property doesn't exist, can't be equal
 			}
@@ -378,7 +395,7 @@ type LabelBuffer struct {
 	tree *rtree.RTree
 }
 
-func newLabelBuffer() *LabelBuffer {
+func NewLabelBuffer() *LabelBuffer {
 	return &LabelBuffer{tree: &rtree.RTree{}}
 }
 
@@ -397,7 +414,9 @@ func (lb *LabelBuffer) WriteIfPossible(text string, x, y int) bool {
 	return false
 }
 
-func baseZoom(zoom float64) int { return int(math.Floor(zoom)) }
+func baseZoom(zoom float64) int {
+	return int(math.Floor(zoom))
+}
 
 func tilesizeAtZoom(zoom float64) float64 {
 	return ProjectSize * math.Pow(2, zoom-float64(baseZoom(zoom)))

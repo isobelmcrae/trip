@@ -16,23 +16,17 @@ func renderTileLayer(canvas *Canvas, lb *LabelBuffer, tile *Tile, pos orb.Point,
 		return // Skip empty/invalid tiles
 	}
 	scale := float64(tile.Extent) / tileSize
-	foundCount := 0 // <-- ADD THIS
 	tile.Rtree.Search(
 		[2]float64{-pos.X() * scale, -pos.Y() * scale},
 		[2]float64{(float64(canvas.width) - pos.X()) * scale, (float64(canvas.height) - pos.Y()) * scale},
 		func(_, _ [2]float64, data interface{}) bool {
-			foundCount++ // <-- ADD THIS
 			feature := data.(*StyledFeature)
 			if feature.Style.SourceLayer == layerName {
-				fmt.Printf("  [R-Tree HIT] Found feature with style '%s' for layer '%s'. Drawing it.\n", feature.Style.ID, layerName)
 				drawFeature(canvas, lb, feature, pos, scale, zoom)
 			}
 			return true
 		},
 	)
-	if foundCount > 0 && layerName == "water" { // Let's check a known layer
-		fmt.Printf("  -> R-Tree search for layer '%s' completed. Found %d total items in tile.\n", layerName, foundCount)
-	}
 }
 
 func drawFeature(canvas *Canvas, lb *LabelBuffer, feature *StyledFeature, pos orb.Point, scale, zoom float64) {
@@ -43,8 +37,6 @@ func drawFeature(canvas *Canvas, lb *LabelBuffer, feature *StyledFeature, pos or
 	transform := func(p orb.Point) orb.Point {
 		return orb.Point{pos.X() + p.X()/scale, pos.Y() + p.Y()/scale}
 	}
-
-		fmt.Printf("    [drawFeature] Drawing feature of type '%s' with color '%s'\n", feature.Style.Type, feature.Color)
 
 	switch feature.Style.Type {
 	case "fill":
@@ -102,7 +94,7 @@ type Canvas struct {
 	brailleMap       [4][2]byte
 }
 
-func newCanvas(width, height int) *Canvas {
+func NewCanvas(width, height int) *Canvas {
 	size := (width / 2) * (height / 4)
 	return &Canvas{
 		width: width, height: height, pixelBuffer: make([]byte, size),
