@@ -22,6 +22,9 @@ type RootModel struct {
 
     OriginID string
     DestinationID string
+
+    Sidebar *flexbox.Cell
+    Main *flexbox.Cell
 }
 
 func InitaliseRootModel() (m *RootModel){
@@ -41,6 +44,9 @@ func InitaliseRootModel() (m *RootModel){
     }
 
     m.flexBox.AddRows(rows)
+
+    m.Sidebar = m.flexBox.GetRow(0).GetCell(1)
+    m.Main = m.flexBox.GetRow(0).GetCell(0)
     
     db, err := sql.Open("sqlite3", state.DatabasePath)
     if err != nil {

@@ -2,7 +2,6 @@ package styles
 
 import (
 	lg "github.com/charmbracelet/lipgloss"
-	"github.com/isobelmcrae/trip/api"
 )
 
 var (
@@ -14,10 +13,20 @@ var (
         Align(lg.Left)
 )
 
-func CreateLineHighlight(api.Transportation) lg.Style {
-    return lg.NewStyle()
+func CreateLineHighlight(transit string) lg.Style {
+    colour := ColourForLine(transit)
+
+    style := lg.NewStyle().Background(colour).Bold(true)
+    return style
 }
 
-func FormatRouteLeg(width int) lg.Style {
-    return lg.NewStyle().BorderStyle(lg.NormalBorder()).Align(lg.Left).Width(width)
+func FormatRouteLeg(width int, transit string) lg.Style {
+    return lg.NewStyle().
+        BorderStyle(lg.RoundedBorder()).
+        Align(lg.Left).
+        Width(width).
+        PaddingRight(1).
+        PaddingLeft(1).
+        BorderForeground(ColourForLine(transit)) // mid fix
+
 }

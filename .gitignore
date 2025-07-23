@@ -31,6 +31,7 @@ go.work.sum
 
 # logs
 trip.log
+*.tape
 
 # Editor/IDE
 # .idea/
