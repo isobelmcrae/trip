@@ -2,92 +2,95 @@ package rendermaps
 
 import (
 	"fmt"
-	"image/color"
+	"math"
+	"sync"
 
-	sm "github.com/flopp/go-staticmaps"
-	"github.com/fogleman/gg"
-	"github.com/golang/geo/s2"
-	"github.com/isobelmcrae/trip/api"
+	"github.com/paulmach/orb"
 )
 
-func TripRender(journey api.Journey) error {
-	ctx := sm.NewContext()
+const (
+	TileSourceURL = "http://mapscii.me/"
+	StyleFile     = "style.json" // Assumes style file is in the same directory
+	POIMarker     = "◉"
+	MaxZoom       = 18.0
+	MinZoom       = 1.0
+	ProjectSize   = 256.0
+	MaxLat        = 85.0511
+)
 
-	if len(journey.Legs) == 0 {
-		return fmt.Errorf("cannot render a trip with no legs")
-	}
-	
-	panic("set api key in this function")
-	ctx.SetTileProvider(&sm.TileProvider{
-		TileSize: 512,
-		URLPattern: "https://api.maptiler.com/maps/toner-v2/%[2]d/%[3]d/%[4]d.png?key=",
-	})
-	ctx.OverrideAttribution("")
-	
-	ctx.SetSize(800, 600)
-
-	var objects []sm.MapObject
-
-	pathColor := color.RGBA{R: 0x00, G: 0x00, B: 0xFF, A: 0xBB}
-	startMarkerColor := color.RGBA{R: 0x00, G: 0xFF, B: 0x00, A: 0xFF}
-	endMarkerColor := color.RGBA{R: 0xFF, G: 0x00, B: 0x00, A: 0xFF}
-
-	latLngFromCoord := func(coord []float64) (s2.LatLng, bool) {
-		if len(coord) == 2 {
-			return s2.LatLngFromDegrees(coord[0], coord[1]), true
-		}
-		return s2.LatLng{}, false
-	}
-
-	for _, leg := range journey.Legs {
-		var legPathPoints []s2.LatLng
-
-		if p, ok := latLngFromCoord(leg.Origin.Coord); ok {
-			legPathPoints = append(legPathPoints, p)
-		}
-		for _, stop := range leg.StopSequence {
-			if p, ok := latLngFromCoord(stop.Coord); ok {
-				legPathPoints = append(legPathPoints, p)
-			}
-		}
-		if p, ok := latLngFromCoord(leg.Destination.Coord); ok {
-			legPathPoints = append(legPathPoints, p)
-		}
-
-		if len(legPathPoints) > 1 {
-			objects = append(objects, sm.NewPath(legPathPoints, pathColor, 3.0))
-		}
-	}
-
-	if len(journey.Legs) > 0 {
-		firstLeg := journey.Legs[0]
-		if p, ok := latLngFromCoord(firstLeg.Origin.Coord); ok {
-			objects = append(objects, sm.NewMarker(p, startMarkerColor, 16.0))
-		}
-
-		lastLeg := journey.Legs[len(journey.Legs)-1]
-		if p, ok := latLngFromCoord(lastLeg.Destination.Coord); ok {
-			objects = append(objects, sm.NewMarker(p, endMarkerColor, 16.0))
-		}
-	}
-
-	if len(objects) == 0 {
-		return fmt.Errorf("cannot render trip: the provided journey contains no valid coordinates to draw")
-	}
-
-	for _, object := range objects {
-		ctx.AddObject(object)
-	}
-
-	img, err := ctx.Render()
+func RenderMap(width, height int, lat, lon float64, zoom float64) (string, error) {
+	// 1. Setup: Load style, create tile source, and prepare the canvas.
+	styler, err := newStyler(StyleFile)
 	if err != nil {
-		return fmt.Errorf("failed to render map: %w", err)
+		return "", err
+	}
+	tileSource := newTileSource(TileSourceURL, styler)
+	canvas := newCanvas(width*2, height*4) // Canvas is in pixels (2x4 per char)
+	labelBuffer := newLabelBuffer()
+
+	// 2. Tile Calculation: Determine which tiles are visible in the viewport.
+	z := baseZoom(zoom)
+	centerX, centerY := ll2tile(lon, lat, z)
+	tileSize := tilesizeAtZoom(zoom)
+	gridSize := math.Pow(2, float64(z))
+
+	type tileJob struct {
+		tile *Tile
+		pos  orb.Point
+	}
+	fetchedTiles := make(chan tileJob)
+	var wg sync.WaitGroup
+
+	// 3. Fetching: Concurrently fetch all visible tiles.
+	for ty := math.Floor(centerY) - 1; ty <= math.Floor(centerY)+1; ty++ {
+		for tx := math.Floor(centerX) - 1; tx <= math.Floor(centerX)+1; tx++ {
+			tileX := int(math.Mod(tx, gridSize))
+			if tileX < 0 {
+				tileX += int(gridSize)
+			}
+			tileY := int(ty)
+
+			if tileY < 0 || tileY >= int(gridSize) {
+				continue
+			}
+
+			wg.Add(1)
+			go func(z, x, y int, tx, ty float64) {
+				defer wg.Done()
+				tile, err := tileSource.GetTile(z, x, y)
+				if err == nil {
+					pos := orb.Point{
+						float64(canvas.width)/2 - (centerX-tx)*tileSize,
+						float64(canvas.height)/2 - (centerY-ty)*tileSize,
+					}
+					fetchedTiles <- tileJob{tile: tile, pos: pos}
+				}
+			}(z, tileX, tileY, tx, ty)
+		}
 	}
 
-	if err := gg.SavePNG("trip_map.png", img); err != nil {
-		return fmt.Errorf("failed to save image: %w", err)
+	go func() {
+		wg.Wait()
+		close(fetchedTiles)
+	}()
+
+	var jobs []tileJob
+	for job := range fetchedTiles {
+		jobs = append(jobs, job)
 	}
 
-	fmt.Println("Successfully rendered and saved trip_map.png")
-	return nil
+	fmt.Printf("jobs: %+v\n", jobs)
+
+	// 4. Rendering: Draw features from each tile onto the canvas in a specific order.
+	drawOrder := []string{"landuse", "water", "building", "road", "admin", "place_label", "poi_label"}
+		fmt.Println("--- Starting Rendering Loop ---") // <-- ADD THIS
+	for _, layerName := range drawOrder {
+		for _, job := range jobs {
+			fmt.Printf("Attempting to render layer '%s' for tile at pos %v\n", layerName, job.pos)
+			renderTileLayer(canvas, labelBuffer, job.tile, job.pos, tileSize, zoom, layerName)
+		}
+	}
+	fmt.Println("--- Finished Rendering Loop ---") // <-- ADD THIS
+	// 5. Final Output: Convert the canvas's pixel buffer into a printable string.
+	return canvas.Frame(), nil
 }

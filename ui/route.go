@@ -4,18 +4,19 @@
 package ui
 
 import (
-    "time"
-    "context"
-    "fmt"
-    "strings"
-    "github.com/mitchellh/go-wordwrap"
-    "github.com/76creates/stickers/flexbox"
-    tea "github.com/charmbracelet/bubbletea"
-    "github.com/charmbracelet/log"
-    "github.com/isobelmcrae/trip/api"
-    "github.com/isobelmcrae/trip/styles"
-    "github.com/charmbracelet/bubbles/paginator"
-    "github.com/charmbracelet/lipgloss"
+	"context"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/76creates/stickers/flexbox"
+	"github.com/charmbracelet/bubbles/paginator"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/log"
+	"github.com/isobelmcrae/trip/api"
+	"github.com/isobelmcrae/trip/styles"
+	"github.com/mitchellh/go-wordwrap"
 )
 
 type routeState struct {
