@@ -132,8 +132,6 @@ func (c *Canvas) Text(text string, x, y int, color string) {
 }
 func (c *Canvas) Frame() string {
 	var sb strings.Builder
-	// no colour
-	
 	termReset := "\x1B[0m"
 	currentColor := ""
 	for y := 0; y < c.height/4; y++ {

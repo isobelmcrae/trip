@@ -10,18 +10,17 @@ import (
 const (
 	TileSourceURL = "http://mapscii.me/"
 	POIMarker     = "◉"
-	MaxZoom       = 18.0
-	MinZoom       = 1.0
 	ProjectSize   = 256.0
 	MaxLat        = 85.0511
+
+	MaxZoom       = 14.0 // any zoom higher than 14 breaks the rendering...
+	MinZoom       = 1.0
 )
 
 func RenderMap(width, height int, lat, lon float64, zoom float64) (string, error) {
-	// 1. Setup: Load style, create tile source, and prepare the canvas.
-	canvas := NewCanvas(width*2, height*4) // Canvas is in pixels (2x4 per char)
+	canvas := NewCanvas(width*pixelWidthPerChar, height*pixelHeightPerChar) // Canvas is in pixels (2x4 per char)
 	labelBuffer := NewLabelBuffer()
 
-	// 2. Tile Calculation: Determine which tiles are visible in the viewport.
 	z := baseZoom(zoom)
 	centerX, centerY := ll2tile(lon, lat, z)
 	tileSize := tilesizeAtZoom(zoom)
@@ -34,7 +33,6 @@ func RenderMap(width, height int, lat, lon float64, zoom float64) (string, error
 	fetchedTiles := make(chan tileJob)
 	var wg sync.WaitGroup
 
-	// 3. Fetching: Concurrently fetch all visible tiles.
 	for ty := math.Floor(centerY) - 1; ty <= math.Floor(centerY)+1; ty++ {
 		for tx := math.Floor(centerX) - 1; tx <= math.Floor(centerX)+1; tx++ {
 			tileX := int(math.Mod(tx, gridSize))
@@ -72,13 +70,11 @@ func RenderMap(width, height int, lat, lon float64, zoom float64) (string, error
 		jobs = append(jobs, job)
 	}
 
-	// 4. Rendering: Draw features from each tile onto the canvas in a specific order.
 	drawOrder := []string{"landuse", "water", "building", "road", "admin", "place_label", "poi_label"}
 	for _, layerName := range drawOrder {
 		for _, job := range jobs {
 			renderTileLayer(canvas, labelBuffer, job.tile, job.pos, tileSize, zoom, layerName)
 		}
 	}
-	// 5. Final Output: Convert the canvas's pixel buffer into a printable string.
 	return canvas.Frame(), nil
 }
