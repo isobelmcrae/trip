@@ -112,7 +112,6 @@ func (ts *TileSource) GetTile(z, x, y int) (*Tile, error) {
 		ts.mu.Unlock()
 	}
 
-	//fmt.Printf("  [Tile.GetTile] Loaded tile %d/%d/%d in %s\n", z, x, y, time.Since(bench))
 	return tile, nil
 }
 
@@ -196,7 +195,7 @@ func (lb *LabelBuffer) WriteIfPossible(text string, x, y int) bool {
 }
 
 func baseZoom(zoom float64) int {
-	return int(math.Floor(zoom))
+	return min(int(TileRange), int(math.Floor(zoom)))
 }
 
 func tilesizeAtZoom(zoom float64) float64 {

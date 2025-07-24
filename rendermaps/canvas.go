@@ -1,7 +1,6 @@
 package rendermaps
 
 import (
-	"fmt"
 	"sort"
 	"strings"
 
@@ -57,13 +56,9 @@ func drawFeature(canvas *Canvas, lb *LabelBuffer, feature *StyledFeature, pos or
 			for i, p := range ls {
 				points[i] = transform(p)
 			}
-			// ** CORRECTED SIMPLIFICATION **
-			// 1. Create a simplifier with a threshold.
-			simplifier := simplify.DouglasPeucker(0.5) 
-			// 2. Simplify the geometry.
+			simplifier := simplify.DouglasPeucker(0.5)
 			simplifiedGeom := simplifier.Simplify(points)
 
-			// 3. Type assert the result and draw it.
 			if simplifiedLine, ok := simplifiedGeom.(orb.LineString); ok {
 				canvas.Polyline(simplifiedLine, feature.Color)
 			}
@@ -85,13 +80,12 @@ func drawFeature(canvas *Canvas, lb *LabelBuffer, feature *StyledFeature, pos or
 	}
 }
 
-// --- Canvas (corresponds to BrailleBuffer.js + Canvas.js) ---
 type Canvas struct {
-	width, height    int
-	pixelBuffer      []byte
-	charBuffer       map[int]rune
-	colorBuffer      map[int]string
-	brailleMap       [4][2]byte
+	width, height int
+	pixelBuffer   []byte
+	charBuffer    map[int]rune
+	colorBuffer   map[int]string
+	brailleMap    [4][2]byte
 }
 
 func NewCanvas(width, height int) *Canvas {
@@ -102,24 +96,32 @@ func NewCanvas(width, height int) *Canvas {
 		brailleMap: [4][2]byte{{0x01, 0x08}, {0x02, 0x10}, {0x04, 0x20}, {0x40, 0x80}},
 	}
 }
+
 func (c *Canvas) project(x, y int) (int, bool) {
 	if x < 0 || x >= c.width || y < 0 || y >= c.height {
 		return 0, false
 	}
 	return (x / 2) + (c.width/2)*(y/4), true
 }
+
 func (c *Canvas) SetPixel(x, y int, color string) {
 	if idx, ok := c.project(x, y); ok {
-		// ADD THIS - but be careful, it will be extremely verbose. Maybe only for one color.
-		if color != "" && strings.Contains(color, "38;2;170;211;223") { // Example: water color from dark.json
-			fmt.Printf("      [SetPixel] Setting pixel at (%d, %d) -> buffer index %d\n", x, y, idx)
-		}
 		c.pixelBuffer[idx] |= c.brailleMap[y%4][x%2]
 		if _, exists := c.colorBuffer[idx]; !exists {
 			c.colorBuffer[idx] = color
 		}
 	}
 }
+
+func (c *Canvas) setPixelSplat(x, y int, color string) {
+	if idx, ok := c.project(x, y); ok {
+		//c.pixelBuffer[idx] |= 0xff // splat!
+		//c.pixelBuffer[idx] |= c.brailleMap[y%4][x%2]
+		c.charBuffer[idx] = '•'
+		c.colorBuffer[idx] = color
+	}
+}
+
 func (c *Canvas) Text(text string, x, y int, color string) {
 	// Center text
 	x -= (runewidth.StringWidth(text) / 2) * 2
@@ -130,6 +132,7 @@ func (c *Canvas) Text(text string, x, y int, color string) {
 		}
 	}
 }
+
 func (c *Canvas) Frame() string {
 	var sb strings.Builder
 	termReset := "\x1B[0m"
@@ -162,13 +165,45 @@ func (c *Canvas) Frame() string {
 	return sb.String()
 }
 
-// --- Polygon / Line Drawing Helpers for Canvas ---
 func (c *Canvas) Polyline(points []orb.Point, color string) {
 	for i := 0; i < len(points)-1; i++ {
 		c.line(points[i], points[i+1], color)
 	}
 }
-func (c *Canvas) line(p1, p2 orb.Point, color string) {
+
+var (
+	redColour = ("#ff0000")
+)
+
+// to be used after everything is rendered
+func (c *Canvas) SplatLineGeo(
+	originLat, originLon, destLat, destLon float64,
+	mapCenterLat, mapCenterLon,
+	mapZoom float64, colour string,
+) {
+	canvasP1 := geoToPixel(
+		originLat, originLon,
+		mapCenterLat, mapCenterLon, mapZoom,
+		c.width, c.height,
+	)
+
+	canvasP2 := geoToPixel(
+		destLat, destLon,
+		mapCenterLat, mapCenterLon, mapZoom,
+		c.width, c.height,
+	)
+
+	c.line(canvasP1, canvasP2, hexToANSI(colour), true)
+}
+
+func (c *Canvas) line(p1, p2 orb.Point, color string, impl ...bool) {
+	var setPixel bool
+	if len(impl) > 0 && impl[0] {
+		setPixel = true
+	} else {
+		setPixel = false
+	}
+
 	x0, y0, x1, y1 := int(p1.X()), int(p1.Y()), int(p2.X()), int(p2.Y())
 
 	dx := x1 - x0
@@ -194,7 +229,11 @@ func (c *Canvas) line(p1, p2 orb.Point, color string) {
 	err := dx + dy
 
 	for {
-		c.SetPixel(x0, y0, color)
+		if setPixel {
+			c.setPixelSplat(x0, y0, color)
+		} else {
+			c.SetPixel(x0, y0, color)
+		}
 		if x0 == x1 && y0 == y1 {
 			break
 		}
@@ -209,6 +248,7 @@ func (c *Canvas) line(p1, p2 orb.Point, color string) {
 		}
 	}
 }
+
 func (c *Canvas) Polygon(rings []orb.Ring, color string) {
 	if len(rings) == 0 {
 		return
@@ -303,7 +343,7 @@ func (c *Canvas) filledTriangle(p1, p2, p3 orb.Point, color string) {
 	for i := 0; i < len(allPoints)-1; {
 		pStart := allPoints[i]
 		pEnd := pStart
-		
+
 		// Find the last point on the same scanline
 		j := i
 		for j < len(allPoints) && allPoints[j].Y() == pStart.Y() {
@@ -316,7 +356,7 @@ func (c *Canvas) filledTriangle(p1, p2, p3 orb.Point, color string) {
 		for x := int(pStart.X()); x <= int(pEnd.X()); x++ {
 			c.SetPixel(x, y, color)
 		}
-		
+
 		i = j // Move to the next scanline
 	}
 }

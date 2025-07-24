@@ -156,7 +156,7 @@ func (s *routeState) RenderCells(f *flexbox.FlexBox) {
 	s.root.Sidebar.SetContent(b.String())
 
 	// TODO render map here
-	s.renderLeg(s.Routes[0].Legs[0])
+	s.renderLeg(s.Routes[0].Legs, 0)
 }
 
 func (s *routeState) Update(msg tea.Msg) (AppState, tea.Cmd) {
