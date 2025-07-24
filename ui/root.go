@@ -55,7 +55,7 @@ func InitaliseRootModel() (m *RootModel){
     // defer db.Close()
     m.Client = api.NewClient(db)
 
-    m.States.Push(newInputState(m, &m.OriginID, "Where are you?", "test"))
+    m.States.Push(newOriginInputState(m))
 
     main := styles.WelcomeMainContent.Render(welcome)
     m.flexBox.GetRow(0).GetCell(0).SetContent(main).

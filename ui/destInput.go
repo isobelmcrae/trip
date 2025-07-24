@@ -8,17 +8,12 @@ import (
     "github.com/charmbracelet/log"
 )
 
-type inputState struct {
+type destInputState struct {
     root *RootModel
     input textinput.Model
-    output *string
-    
-    // displayed to user
-    prompt string
-    placeholder string
 }
 
-func (s *inputState) Update(msg tea.Msg) (AppState, tea.Cmd){
+func (s *destInputState) Update(msg tea.Msg) (AppState, tea.Cmd){
     var cmd tea.Cmd
     s.input, cmd = s.input.Update(msg)
 
@@ -26,7 +21,7 @@ func (s *inputState) Update(msg tea.Msg) (AppState, tea.Cmd){
     case tea.KeyMsg:
         if msg.Type == tea.KeyEnter {
             log.Debug("User input", "input", s.input.Value())
-            s.root.States.Push(newSelectState(s.root, s.input.Value(), s.output))
+            s.root.States.Push(newDestSelectState(s.root, s.input.Value()))
             return s, cmd
         }
     }
@@ -35,31 +30,27 @@ func (s *inputState) Update(msg tea.Msg) (AppState, tea.Cmd){
 }
 
 // Update the main window and the sidebar's content
-func (s *inputState) RenderCells(f *flexbox.FlexBox) {
-    prompt := s.prompt
+func (s *destInputState) RenderCells(f *flexbox.FlexBox) {
     sidebar := styles.WelcomeSidebarContent.Render(s.input.View())
 
     f.GetRow(0).GetCell(1).
-        SetContent(styles.Prompt.Render(prompt) + "\n\n" + sidebar).
+        SetContent(styles.Prompt.Render("Where are you going?") + "\n\n" + sidebar).
         SetStyle(styles.WelcomeSidebar)
 }
 
 // creates a new welcome state which can then
 // be pushed onto states
-func newInputState(root *RootModel, output *string, prompt string, placeholder string) AppState {
+func newDestInputState(root *RootModel) AppState {
     ti := textinput.New()
-    ti.Placeholder = placeholder
+    ti.Placeholder = "Enter destination stop..."
     ti.Focus()
     ti.Width = 30
 
-    return &inputState{
+    return &destInputState{
         input: ti,
         root: root,
-
-        output: output, 
-        prompt: prompt,
-        placeholder: placeholder,
     }
 }
+
 
 
