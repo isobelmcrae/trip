@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 
+set -euo pipefail
+
 if [ "$#" -ne 1 ]; then
-	echo "Usage: $0 <path to GTFS stops.txt>"
+	echo "Usage: $0 <path to GTFS folder>"
 	exit 1
 fi
 
