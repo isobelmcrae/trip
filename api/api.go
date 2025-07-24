@@ -111,6 +111,7 @@ func (tc *TripClient) GetCurrentAlerts(ctx context.Context) ([]Alert, error) {
 }
 
 func (tc *TripClient) TripPlan(ctx context.Context, origin string, destination string) ([]Journey, error) {
+	now := time.Now().Format("1504")
 	params := tripQuery{
 		OutputFormat:      "rapidJSON",
 		CoordOutputFormat: "EPSG:4326",
@@ -120,6 +121,7 @@ func (tc *TripClient) TripPlan(ctx context.Context, origin string, destination s
 		TypeDestination:   "any",
 		DestinationID:     destination,
 		ExcludedMeans:     "11", // exclude school buses
+		Time:              now,
 	}
 
 	data, err := tc.fetchData(ctx, "/trip", params)

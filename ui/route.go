@@ -61,17 +61,26 @@ func newRouteState(root *RootModel) AppState {
 	s.paginator.PerPage = 1
 	s.paginator.ActiveDot = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "235", Dark: "252"}).PaddingRight(1).Render("")
 	s.paginator.InactiveDot = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "250", Dark: "238"}).PaddingRight(1).Render("")
-	s.paginator.SetTotalPages(len(s.Routes))
 
 	// format every route for pagination
+	// ensure only routes after the current time are shown
 	var formattedRoutes []string
+	now := time.Now()
 	for _, route := range s.Routes {
-		formatted := s.displayRoute(route)
-		formattedRoutes = append(formattedRoutes, formatted)
+		routeStartTime := route.Legs[0].Origin.DepartureTimeEstimated
+		log.Debug("start time:", "time", routeStartTime)
+		parsedTime, _ := time.Parse(time.RFC3339, routeStartTime)
+		log.Debug("time parsed:", "parsed", parsedTime)
+
+		if parsedTime.After(now) {
+			formatted := s.displayRoute(route)
+			formattedRoutes = append(formattedRoutes, formatted)
+		}
 	}
 
 	s.RenderedRoutes = formattedRoutes
-
+	s.paginator.SetTotalPages(len(s.RenderedRoutes))
+	
 	return s
 }
 
@@ -99,8 +108,8 @@ func formatTime(loc *time.Location, rawTime string) string {
 		return "n/a"
 	}
 
-	parsed, _ := time.ParseInLocation(time.RFC3339, rawTime, loc)
-	formatted := parsed.Format("3:04")
+	parsed, _ := time.Parse(time.RFC3339, rawTime)
+	formatted := parsed.In(loc).Format("3:04pm")
 	return formatted
 }
 

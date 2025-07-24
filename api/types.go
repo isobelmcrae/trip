@@ -66,7 +66,6 @@ type alertQuery struct {
 	Date                    string `url:"filterDateValid"`
 }
 
-// tripPlan :3
 type tripQuery struct {
 	OutputFormat      string `url:"outputFormat"`
 	CoordOutputFormat string `url:"coordOutputFormat"`
@@ -76,6 +75,7 @@ type tripQuery struct {
 	TypeDestination   string `url:"type_destination"`
 	DestinationID     string `url:"name_destination"`
 	ExcludedMeans     string `url:"excludedMeans"`
+	Time              string `url:"itdTime"`
 }
 
 type tripResponse struct {
