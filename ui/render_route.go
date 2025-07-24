@@ -5,6 +5,7 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/isobelmcrae/trip/api"
 	"github.com/isobelmcrae/trip/rendermaps"
+	"github.com/isobelmcrae/trip/styles"
 )
 
 func (s *routeState) renderLeg(legs []api.Leg, legIdx int) {
@@ -36,11 +37,8 @@ func (s *routeState) renderLeg(legs []api.Leg, legIdx int) {
 		//            this is just testing data for now
 		
 		var hex string
-		if leg != legIdx {
-			hex = "#ff00ff" // magenta for other legs
-		} else {
-			hex = "#ff0000" // red for the current leg
-		}
+
+		hex = styles.HexColourForLine(legs[leg].Transportation.DisassembledName)
 		
 		l := legs[leg]
 		renderer.Canvas.SplatLineGeo(

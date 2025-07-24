@@ -16,7 +16,6 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/isobelmcrae/trip/api"
 	"github.com/isobelmcrae/trip/styles"
-	"github.com/mitchellh/go-wordwrap"
 )
 
 type routeState struct {
@@ -68,9 +67,7 @@ func newRouteState(root *RootModel) AppState {
 	now := time.Now()
 	for _, route := range s.Routes {
 		routeStartTime := route.Legs[0].Origin.DepartureTimeEstimated
-		log.Debug("start time:", "time", routeStartTime)
 		parsedTime, _ := time.Parse(time.RFC3339, routeStartTime)
-		log.Debug("time parsed:", "parsed", parsedTime)
 
 		if parsedTime.After(now) {
 			formatted := s.displayRoute(route)
@@ -127,14 +124,12 @@ func (s *routeState) formatLeg(l api.Leg) string {
 	// colour highlight the line
 	lineStr := styles.CreateLineHighlight(transport).Render(fmt.Sprintf("[%s]", transport))
 
-	originStr := fmt.Sprintf("%s %s\n", lineStr, l.Origin.DisassembledName)
-	destStr := fmt.Sprintf("%s %s", lineStr, l.Destination.DisassembledName)
+	originStr := fmt.Sprintf("%s %s | %s", lineStr, l.Origin.DisassembledName, formatTime(s.loc, l.Origin.DepartureTimeEstimated))
+	destStr := fmt.Sprintf("%s %s | %s", lineStr, l.Destination.DisassembledName, formatTime(s.loc, l.Destination.ArrivalTimeEstimated))
 
-	// wrap to fit the flexbox
-	wrappedOStr := wordwrap.WrapString(originStr, uint(s.legWidth))
-	wrappedDStr := wordwrap.WrapString(destStr, uint(s.legWidth))
+	duration := l.Duration / 60
 
-	leg := fmt.Sprintf("%s\n%s", wrappedOStr, wrappedDStr)
+	leg := fmt.Sprintf("%s\n\n> Travel for %dmin\n\n%s", originStr, duration, destStr)
 
 	doc.WriteString(styles.FormatRouteLeg(s.legWidth, transport).Render(leg) + "\n")
 
@@ -156,13 +151,14 @@ func (s *routeState) RenderCells(f *flexbox.FlexBox) {
 	s.root.Sidebar.SetContent(b.String())
 
 	// TODO render map here
-	s.renderLeg(s.Routes[0].Legs, 0)
+	s.renderLeg(s.Routes[s.paginator.Page].Legs, 0)
 }
 
 func (s *routeState) Update(msg tea.Msg) (AppState, tea.Cmd) {
 	var cmd tea.Cmd
 
 	s.paginator, cmd = s.paginator.Update(msg)
+	s.RenderCells(s.root.flexBox)
 
 	return s, cmd
 }

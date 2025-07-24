@@ -14,7 +14,7 @@ var (
 )
 
 func CreateLineHighlight(transit string) lg.Style {
-    colour := ColourForLine(transit)
+    colour := LgColourForLine(transit)
 
     style := lg.NewStyle().Background(colour).Bold(true)
     return style
@@ -27,6 +27,6 @@ func FormatRouteLeg(width int, transit string) lg.Style {
         Width(width).
         PaddingRight(1).
         PaddingLeft(1).
-        BorderForeground(ColourForLine(transit)) // mid fix
+        BorderForeground(LgColourForLine(transit)) // mid fix
 
 }

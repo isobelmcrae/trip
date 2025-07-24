@@ -11,52 +11,52 @@ import "strings"
 // source: https://opendata.transport.nsw.gov.au/developers/resources
 const (
     // metro
-    MetroColour = lg.Color("#168388")
+    MetroColour = "#168388"
 
     // sydney trains
-    T1Colour = lg.Color("#F99D1C")
-    T2Colour = lg.Color("#0098CD")
-    T3Colour = lg.Color("#F37021")
-    T4Colour = lg.Color("#005AA")
-    T5Colour = lg.Color("#C4258F")
-    T6Colour = lg.Color("#7F3D1B")
-    T7Colour = lg.Color("#6F818E")
-    T8Colour = lg.Color("#00954C")
-    T9Colour = lg.Color("#D11F2F")
+    T1Colour = "#F99D1C"
+    T2Colour = "#0098CD"
+    T3Colour = "#F37021"
+    T4Colour = "#005AA"
+    T5Colour = "#C4258F"
+    T6Colour = "#7F3D1B"
+    T7Colour = "#6F818E"
+    T8Colour = "#00954C"
+    T9Colour = "#D11F2F"
 
-    BusColour = lg.Color("#009ED7")
+    BusColour = "#009ED7"
 
     // intercity trains
-    BlueMountainsColour = lg.Color("#F99D1C")
-    CCNewcastleColour = lg.Color("#D11F2F")
-    HunterColour = lg.Color("#833134")
-    SouthCoastColour = lg.Color("#005AA3")
-    SouthernHighlandsColour = lg.Color("#00954C")
+    BlueMountainsColour = "#F99D1C"
+    CCNewcastleColour = "#D11F2F"
+    HunterColour = "#833134"
+    SouthCoastColour = "#005AA3"
+    SouthernHighlandsColour = "#00954C"
 
     // regional trains and coaches network
-    TrainsColour = lg.Color("#F6891F")
-    CoachesColour = lg.Color("#732A82")
+    TrainsColour = "#F6891F"
+    CoachesColour = "#732A82"
 
     // ferries
-    F1Colour = lg.Color("#00774B")
-    F2Colour = lg.Color("#144734")
-    F3Colour = lg.Color("#648C3C")
-    F4Colour = lg.Color("#BFD730")
-    F5Colour = lg.Color("#286142")
-    F6Colour = lg.Color("#00AB51")
-    F7Colour = lg.Color("#00B189")
-    F8Colour = lg.Color("#55622B")
-    F9Colour = lg.Color("#65B32E")
-    F10Colour = lg.Color("#5AB031") // colour spec subject to change
-    StocktonColour = lg.Color("#5AB031")
+    F1Colour = "#00774B"
+    F2Colour = "#144734"
+    F3Colour = "#648C3C"
+    F4Colour = "#BFD730"
+    F5Colour = "#286142"
+    F6Colour = "#00AB51"
+    F7Colour = "#00B189"
+    F8Colour = "#55622B"
+    F9Colour = "#65B32E"
+    F10Colour = "#5AB031" // colour spec subject to change
+    StocktonColour = "#5AB031"
 
     // sydney light rail
-    L1Colour = lg.Color("#BE1622")
-    L2Colour = lg.Color("#DD1E25")
-    L3Colour = lg.Color("#781140")
-    NLRColour = lg.Color("#EE343F")
+    L1Colour = "#BE1622"
+    L2Colour = "#DD1E25"
+    L3Colour = "#781140"
+    NLRColour = "#EE343F"
 
-    WalkColour = lg.Color("#4d4d4d")
+    WalkColour = "#4d4d4d"
 )
 
 // flexbox colours
@@ -65,7 +65,7 @@ const (
     ActiveColour = lg.ANSIColor(7)
 )
 
-var LineColours = map[string]lg.Color{
+var LineColours = map[string]string{
     // Metro
     "Metro": MetroColour,
 
@@ -115,43 +115,87 @@ var LineColours = map[string]lg.Color{
     "WALK": WalkColour,
 }
 
-func ColourForLine(line string) lg.Color {
+func LgColourForLine(line string) lg.Color {
     line = strings.ToUpper(line)
+    var colour string
 
     switch {
     // Metro lines like M1, M2, M3
     case strings.HasPrefix(line, "M"):
-        return MetroColour
+        colour = MetroColour
 
     // Ferries (F1-F10)
     case strings.HasPrefix(line, "F"):
         if c, ok := LineColours[line]; ok {
-            return c
+            colour = c
         }
 
     // Light rail
     case strings.HasPrefix(line, "L"):
         if c, ok := LineColours[line]; ok {
-            return c
+            colour = c
         }
 
     // Trains (T1-T9)
     case strings.HasPrefix(line, "T"):
         if c, ok := LineColours[line]; ok {
-            return c
+            colour = c
         }
 
     // Explicit map fallback (covers intercity, regional, named lines)
     default:
         if c, ok := LineColours[line]; ok {
-            return c
+            colour = c
         } else if line == "WALK" {
-            return LineColours["WALK"]
+            colour = LineColours["WALK"]
         } else {
-            return LineColours["Bus"]
+            colour = LineColours["Bus"]
         }
     }
 
-    return lg.Color("") // default: no colour
+    return lg.Color(colour)
 }
+
+
+func HexColourForLine(line string) string {
+    line = strings.ToUpper(line)
+    var colour string
+
+    switch {
+    // Metro lines like M1, M2, M3
+    case strings.HasPrefix(line, "M"):
+        colour = MetroColour
+
+    // Ferries (F1-F10)
+    case strings.HasPrefix(line, "F"):
+        if c, ok := LineColours[line]; ok {
+            colour = c
+        }
+
+    // Light rail
+    case strings.HasPrefix(line, "L"):
+        if c, ok := LineColours[line]; ok {
+            colour = c
+        }
+
+    // Trains (T1-T9)
+    case strings.HasPrefix(line, "T"):
+        if c, ok := LineColours[line]; ok {
+            colour = c
+        }
+
+    // Explicit map fallback (covers intercity, regional, named lines)
+    default:
+        if c, ok := LineColours[line]; ok {
+            colour = c
+        } else if line == "WALK" {
+            colour = LineColours["WALK"]
+        } else {
+            colour = LineColours["Bus"]
+        }
+    }
+
+    return colour
+}
+
 
