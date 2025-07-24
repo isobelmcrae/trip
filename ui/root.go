@@ -27,7 +27,7 @@ type RootModel struct {
     Main *flexbox.Cell
 }
 
-func InitaliseRootModel() (m *RootModel){
+func InitialiseRootModel() (m *RootModel){
     // figure out what to do with this + other strings
     var welcome = "trip v0.0.0\n\nsydney public transport for your terminal\n\nhjkl/arrow keys to move\nesc to go back, enter to select\nctrl+c to exit"
 
