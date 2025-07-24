@@ -21,7 +21,6 @@ import (
 type routeState struct {
 	root           *RootModel
 	Routes         []api.Journey
-	RenderedRoutes []string
 	paginator      paginator.Model
 	legWidth       int
 	loc            *time.Location
@@ -52,7 +51,7 @@ func newRouteState(root *RootModel) AppState {
 		loc:      location,
 	}
 
-	s.Routes = s.getRoutes()
+	originalRoutes := s.getRoutes()
 
 	// extract styling to `styles/`
 	s.paginator = paginator.New()
@@ -61,22 +60,21 @@ func newRouteState(root *RootModel) AppState {
 	s.paginator.ActiveDot = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "235", Dark: "252"}).PaddingRight(1).Render("")
 	s.paginator.InactiveDot = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "250", Dark: "238"}).PaddingRight(1).Render("")
 
+	s.Routes = nil // append
+
 	// format every route for pagination
 	// ensure only routes after the current time are shown
-	var formattedRoutes []string
 	now := time.Now()
-	for _, route := range s.Routes {
+	for _, route := range originalRoutes {
 		routeStartTime := route.Legs[0].Origin.DepartureTimeEstimated
 		parsedTime, _ := time.Parse(time.RFC3339, routeStartTime)
 
 		if parsedTime.After(now) {
-			formatted := s.displayRoute(route)
-			formattedRoutes = append(formattedRoutes, formatted)
+			s.Routes = append(s.Routes, route)
 		}
 	}
 
-	s.RenderedRoutes = formattedRoutes
-	s.paginator.SetTotalPages(len(s.RenderedRoutes))
+	s.paginator.SetTotalPages(len(s.Routes))
 	
 	return s
 }
@@ -142,9 +140,10 @@ func (s *routeState) RenderCells(f *flexbox.FlexBox) {
 	styledPaginator := lipgloss.NewStyle().Width(s.legWidth).Align(lipgloss.Center).Render(arrowedPaginator)
 
 	var b strings.Builder
-	start, end := s.paginator.GetSliceBounds(len(s.RenderedRoutes))
-	for _, item := range s.RenderedRoutes[start:end] {
-		b.WriteString(item + "\n\n")
+	start, end := s.paginator.GetSliceBounds(len(s.Routes)) // so the whole thing
+	for _, item := range s.Routes[start:end] {
+		str := s.displayRoute(item)
+		b.WriteString(str + "\n\n")
 	}
 	b.WriteString(styledPaginator)
 
