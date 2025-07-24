@@ -89,7 +89,6 @@ func NewStyler(styleData []byte) (*Styler, error) {
 		// 3. Compile the filter expression into a function.
 		layer.AppliesTo, err = CompileFilter(layer.Filter)
 		if err != nil {
-			fmt.Printf("Warning: failed to compile filter for layer %s: %v. Defaulting to match-all.\n", layer.ID, err)
 			layer.AppliesTo = func(f *geojson.Feature) bool { return true }
 		}
 

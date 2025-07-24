@@ -9,15 +9,30 @@ import (
 
 const (
 	TileSourceURL = "http://mapscii.me/"
+	TileRange     = 14
 	POIMarker     = "◉"
 	ProjectSize   = 256.0
 	MaxLat        = 85.0511
 
-	MaxZoom       = 14.0 // any zoom higher than 14 breaks the rendering...
-	MinZoom       = 1.0
+	MaxZoom = 17.0
+	MinZoom = 1.0
 )
 
-func RenderMap(width, height int, lat, lon float64, zoom float64) (string, error) {
+type tileJob struct {
+	tile *Tile
+	pos  orb.Point
+}
+
+type Renderer struct {
+	Canvas      *Canvas
+	labelBuffer *LabelBuffer
+	jobs        []tileJob
+
+	tileSize float64
+	zoom float64
+}
+
+func RenderMap(width, height int, lat, lon float64, zoom float64) *Renderer {
 	canvas := NewCanvas(width*pixelWidthPerChar, height*pixelHeightPerChar) // Canvas is in pixels (2x4 per char)
 	labelBuffer := NewLabelBuffer()
 
@@ -26,10 +41,6 @@ func RenderMap(width, height int, lat, lon float64, zoom float64) (string, error
 	tileSize := tilesizeAtZoom(zoom)
 	gridSize := math.Pow(2, float64(z))
 
-	type tileJob struct {
-		tile *Tile
-		pos  orb.Point
-	}
 	fetchedTiles := make(chan tileJob)
 	var wg sync.WaitGroup
 
@@ -70,11 +81,40 @@ func RenderMap(width, height int, lat, lon float64, zoom float64) (string, error
 		jobs = append(jobs, job)
 	}
 
+	return &Renderer{
+		Canvas:      canvas,
+		labelBuffer: labelBuffer,
+		jobs:        jobs,
+		tileSize:    tileSize,
+		zoom:        zoom,
+	}
+}
+
+func RenderMapOneshot(width, height int, lat, lon float64, zoom float64) string {
+	renderer := RenderMap(width, height, lat, lon, zoom)
 	drawOrder := []string{"landuse", "water", "building", "road", "admin", "place_label", "poi_label"}
+	renderer.Draw(drawOrder)
+	return renderer.Frame()
+}
+
+// drawOrder := []string{"landuse", "water", "building", "road", "admin", "place_label", "poi_label"}
+
+func (r *Renderer) Draw(drawOrder []string) {
 	for _, layerName := range drawOrder {
-		for _, job := range jobs {
-			renderTileLayer(canvas, labelBuffer, job.tile, job.pos, tileSize, zoom, layerName)
+		for _, job := range r.jobs {
+			renderTileLayer(r.Canvas, r.labelBuffer, job.tile, job.pos, r.tileSize, r.zoom, layerName)
 		}
 	}
-	return canvas.Frame(), nil
 }
+
+func (r *Renderer) Frame() string {
+	return r.Canvas.Frame()
+}
+
+/* func RenderMapString(width, height int, lat, lon float64, zoom float64) (string, error) {
+	canvas, err := RenderMap(width, height, lat, lon, zoom)
+	if err != nil {
+		return "", err
+	}
+	return canvas.Frame(), nil
+} */
