@@ -20,7 +20,19 @@ func CreateLineHighlight(transit string) lg.Style {
     return style
 }
 
-func FormatRouteLeg(width int, transit string) lg.Style {
+func FormatRouteLeg(width int, transit string, bold bool) lg.Style {
+    return lg.NewStyle().
+        BorderStyle(lg.RoundedBorder()).
+        Align(lg.Left).
+        Width(width).
+        PaddingRight(1).
+        PaddingLeft(1).
+        Bold(bold).
+        BorderForeground(LgColourForLine(transit)) // mid fix
+
+}
+
+func FormatRouteLegSelected(width int, transit string) lg.Style {
     return lg.NewStyle().
         BorderStyle(lg.RoundedBorder()).
         Align(lg.Left).

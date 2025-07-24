@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/76creates/stickers/flexbox"
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/paginator"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -18,12 +19,25 @@ import (
 	"github.com/isobelmcrae/trip/styles"
 )
 
+type legSelectionKeymap struct {
+	PrevLeg key.Binding
+	NextLeg key.Binding
+}
+
+// up to move up, down to move down
+var legSelectionKeymapDefault = legSelectionKeymap{
+	PrevLeg: key.NewBinding(key.WithKeys("pgup", "up", "j")),
+	NextLeg: key.NewBinding(key.WithKeys("pgdown", "down", "k")),
+}
+
 type routeState struct {
 	root           *RootModel
 	Routes         []api.Journey
 	paginator      paginator.Model
 	legWidth       int
 	loc            *time.Location
+
+	legSelection int
 }
 
 // using only tfnsw for now
@@ -47,8 +61,11 @@ func newRouteState(root *RootModel) AppState {
 
 	s := &routeState{
 		root:     root,
+		// TODO(iso): i am pretty sure this is the culprit here for non scaling/non
 		legWidth: width,
 		loc:      location,
+
+		legSelection: 0,
 	}
 
 	originalRoutes := s.getRoutes()
@@ -89,8 +106,8 @@ func (s *routeState) displayRoute(r api.Journey) string {
 	title := fmt.Sprintf("%s @%s\n\n%s @%s\n\n", origin.DisassembledName, formatTime(s.loc, origin.DepartureTimeEstimated), destination.DisassembledName, formatTime(s.loc, destination.ArrivalTimeEstimated))
 	doc.WriteString(title)
 
-	for _, leg := range r.Legs {
-		doc.WriteString(s.formatLeg(leg))
+	for idx, leg := range r.Legs {
+		doc.WriteString(s.formatLeg(leg, idx))
 	}
 
 	return doc.String()
@@ -108,8 +125,8 @@ func formatTime(loc *time.Location, rawTime string) string {
 	return formatted
 }
 
-// formats the box for a given leg
-func (s *routeState) formatLeg(l api.Leg) string {
+// formats the box for a given leg, takes in leg and its index into the Legs array
+func (s *routeState) formatLeg(l api.Leg, idx int) string {
 	var doc strings.Builder
 
 	var transport string
@@ -127,9 +144,16 @@ func (s *routeState) formatLeg(l api.Leg) string {
 
 	duration := l.Duration / 60
 
-	leg := fmt.Sprintf("%s\n\n> Travel for %dmin\n\n%s", originStr, duration, destStr)
+	var showSelectedStr string
+	isSelected := idx == s.legSelection
+	if isSelected {
+		showSelectedStr = " (focused)"
+	}
 
-	doc.WriteString(styles.FormatRouteLeg(s.legWidth, transport).Render(leg) + "\n")
+	leg := fmt.Sprintf("%s\n\n> Travel for %dmin%s\n\n%s", originStr, duration, showSelectedStr, destStr)
+
+	// bold iff. we have selected the leg
+	doc.WriteString(styles.FormatRouteLeg(s.legWidth, transport, isSelected).Render(leg) + "\n")
 
 	return doc.String()
 }
@@ -140,7 +164,7 @@ func (s *routeState) RenderCells(f *flexbox.FlexBox) {
 	styledPaginator := lipgloss.NewStyle().Width(s.legWidth).Align(lipgloss.Center).Render(arrowedPaginator)
 
 	var b strings.Builder
-	start, end := s.paginator.GetSliceBounds(len(s.Routes)) // so the whole thing
+	start, end := s.paginator.GetSliceBounds(len(s.Routes)) // returns (0, 1), (1, 2), (3, 4), etc
 	for _, item := range s.Routes[start:end] {
 		str := s.displayRoute(item)
 		b.WriteString(str + "\n\n")
@@ -150,13 +174,34 @@ func (s *routeState) RenderCells(f *flexbox.FlexBox) {
 	s.root.Sidebar.SetContent(b.String())
 
 	// TODO render map here
-	s.renderLeg(s.Routes[s.paginator.Page].Legs, 0)
+	s.renderLeg(s.Routes[s.paginator.Page].Legs, s.legSelection)
 }
 
 func (s *routeState) Update(msg tea.Msg) (AppState, tea.Cmd) {
 	var cmd tea.Cmd
 
+	currentPage := s.paginator.Page
 	s.paginator, cmd = s.paginator.Update(msg)
+	if currentPage != s.paginator.Page {
+		// reset legSelection
+		s.legSelection = 0
+	}
+
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch {
+		case key.Matches(msg, legSelectionKeymapDefault.NextLeg):
+			s.legSelection++
+		case key.Matches(msg, legSelectionKeymapDefault.PrevLeg):
+			s.legSelection--
+		}
+	}
+	if s.legSelection >= len(s.Routes[s.paginator.Page].Legs) {
+		s.legSelection = len(s.Routes[s.paginator.Page].Legs) - 1
+	} else if s.legSelection < 0 {
+		s.legSelection = 0
+	}
+	
 	s.RenderCells(s.root.flexBox)
 
 	return s, cmd
