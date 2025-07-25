@@ -1,46 +1,48 @@
-# trip 🚉
+# 🚉 trip
 
-sydney public transport for your terminal
+**Sydney public transport, in your terminal.**
 
-![https://vhs.charm.sh/vhs-3CWGX0CiqP2yfWXnOxASOC.gif]
+![Demo](https://vhs.charm.sh/vhs-3CWGX0CiqP2yfWXnOxASOC.gif)
 
-# Setup
+---
 
-Required:
-- recent version of `sqlite3` (tested with >= `3.50.2`)
-- TFNSW ("Timetables Complete GTFS")[https://opendata.transport.nsw.gov.au/data/dataset/timetables-complete-gtfs]
-- `TFNSW_KEY` environment variable set to a (TFNSW Open Data Hub API key)[https://opendata.transport.nsw.gov.au/developers/api-basics]
+## 🛠 Setup
 
-To create the database, run `makedatabase.sh` with the path to the unzipped GTFS data:
+### Requirements
+
+* A recent version of `sqlite3` (tested with ≥ **3.50.2**)
+* GTFS data: [**TFNSW Timetables Complete GTFS**](https://opendata.transport.nsw.gov.au/data/dataset/timetables-complete-gtfs)
+* A `TFNSW_KEY` environment variable set to your [**TFNSW Open Data Hub API key**](https://opendata.transport.nsw.gov.au/developers/api-basics)
+
+### Build the database
+
 ```bash
-./makedatabase.sh /path/to/gtfs
+./makedatabase.sh /path/to/unzipped/gtfs
 ```
-Then build and run:
+
+This creates `app.sqlite` with GTFS data.
+
+### Run the app locally
+
 ```bash
 go build -o trip -tags 'fts5' main.go
 ./trip
 ```
 
-## Server Deployment
+---
 
-`trip` offers a 'ssh' mode which allows one to host the app and support connections over `ssh`.
+### SSH Server Mode
 
-App uses port 22 by default - change `defaultSSHAddr` in `main.go` before build.
-Build the app and allow it to bind to reserved ports (e.g. port 22).
+`trip` can be run in SSH mode to allow users to connect via `ssh`:
+
+Edit `defaultSSHAddr` in `main.go` to change the port if needed.
+Then build with permissions to bind to privileged ports and run in ssh mode:
 
 ```bash
 go build -o trip -tags 'fts5' main.go
 sudo setcap CAP_NET_BIND_SERVICE=+eip trip
-```
-
-Run the app with the `--ssh` flag:
-
-```bash
 ./trip --ssh
-# then connect 
-ssh user@your.domain.here -p your_port # or similar
+
+# then connect from another terminal
+ssh user@your.domain.here -p your_port
 ```
-
-TODO: Add docs
-TODO: Document systemd service
-
