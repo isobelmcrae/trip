@@ -104,8 +104,8 @@ func newRouteState(root *RootModel) AppState {
 	s.paginator = paginator.New()
 	s.paginator.Type = paginator.Dots
 	s.paginator.PerPage = 1
-	s.paginator.ActiveDot = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "235", Dark: "252"}).PaddingRight(1).Render("⬤")
-	s.paginator.InactiveDot = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "250", Dark: "238"}).PaddingRight(1).Render("⬤")
+	s.paginator.ActiveDot = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "235", Dark: "252"}).PaddingRight(1).Render("●")
+	s.paginator.InactiveDot = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "250", Dark: "238"}).PaddingRight(1).Render("●")
 	s.paginator.SetTotalPages(len(s.Routes))
 
 	// Set initial content, handling the no-routes case.
@@ -320,8 +320,9 @@ func (s *routeState) RenderCells(f *flexbox.FlexBox) {
 	var finalView string
 
 	if len(s.Routes) > 0 {
-		arrowedPaginator := lipgloss.JoinHorizontal(lipgloss.Left, "<", s.paginator.View(), ">")
-		styledPaginator := lipgloss.NewStyle().Width(s.legWidth).Align(lipgloss.Center).Render(arrowedPaginator)
+		// arrowedPaginator := lipgloss.JoinHorizontal(lipgloss.Left, "<", s.paginator.View(), ">")
+		// styledPaginator := lipgloss.NewStyle().Width(s.legWidth).Align(lipgloss.Center).Render(arrowedPaginator)
+		styledPaginator := lipgloss.NewStyle().Width(s.legWidth).Align(lipgloss.Center).Render(s.paginator.View())
 		finalView = lipgloss.JoinVertical(lipgloss.Left, s.viewport.View(), "\n", styledPaginator)
 	} else {
 		finalView = s.viewport.View()
