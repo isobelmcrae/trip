@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"os"
 	"strings"
 	"time"
 
@@ -42,8 +43,9 @@ type routeState struct {
 	legHeights   []int // Track actual heights of each leg
 
 	// Smooth scrolling state
-	targetYOffset int
-	isScrolling   bool
+	targetYOffset   int
+	isScrolling     bool
+	smoothScrolling bool // Whether smooth scrolling is enabled
 }
 
 // getRoutes fetches trip plans from the API.
@@ -65,12 +67,26 @@ func (s *routeState) getRoutes() []api.Journey {
 func newRouteState(root *RootModel) AppState {
 	location, _ := time.LoadLocation("Australia/Sydney")
 
+	// Check if smooth scrolling should be enabled
+	// Disable for SSH connections or when explicitly disabled
+	smoothScrolling := true
+	if os.Getenv("SSH_CONNECTION") != "" || os.Getenv("SSH_CLIENT") != "" || os.Getenv("SSH_TTY") != "" {
+		smoothScrolling = false
+	}
+	if os.Getenv("TRIP_SMOOTH_SCROLL") == "false" || os.Getenv("TRIP_SMOOTH_SCROLL") == "0" {
+		smoothScrolling = false
+	}
+	if os.Getenv("TRIP_SMOOTH_SCROLL") == "true" || os.Getenv("TRIP_SMOOTH_SCROLL") == "1" {
+		smoothScrolling = true
+	}
+
 	s := &routeState{
-		root:          root,
-		loc:           location,
-		legSelection:  0,
-		targetYOffset: 0,
-		isScrolling:   false,
+		root:            root,
+		loc:             location,
+		legSelection:    0,
+		targetYOffset:   0,
+		isScrolling:     false,
+		smoothScrolling: smoothScrolling,
 	}
 
 	originalRoutes := s.getRoutes()
@@ -104,8 +120,8 @@ func newRouteState(root *RootModel) AppState {
 	s.paginator = paginator.New()
 	s.paginator.Type = paginator.Dots
 	s.paginator.PerPage = 1
-	s.paginator.ActiveDot = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "235", Dark: "252"}).PaddingRight(1).Render("●")
-	s.paginator.InactiveDot = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "250", Dark: "238"}).PaddingRight(1).Render("●")
+	s.paginator.ActiveDot = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "235", Dark: "252"}).PaddingRight(1).Render("⬤")
+	s.paginator.InactiveDot = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "250", Dark: "238"}).PaddingRight(1).Render("⬤")
 	s.paginator.SetTotalPages(len(s.Routes))
 
 	// Set initial content, handling the no-routes case.
@@ -203,19 +219,32 @@ func (s *routeState) scrollToSelectedLeg() tea.Cmd {
 	viewportTop := s.viewport.YOffset
 	viewportBottom := viewportTop + s.viewport.Height
 
+	var targetOffset int
+	needsScroll := false
+
 	// Special case: if first leg is selected, scroll to top to show header
 	if s.legSelection == 0 {
-		return s.smoothScrollTo(0)
+		targetOffset = 0
+		needsScroll = true
+	} else if selectedLegOffset < viewportTop {
+		// If selected leg is above the viewport, scroll up to show it
+		targetOffset = selectedLegOffset
+		needsScroll = true
+	} else if selectedLegOffset+selectedLegHeight > viewportBottom {
+		// If selected leg is below the viewport, scroll down to show it
+		targetOffset = selectedLegOffset + selectedLegHeight - s.viewport.Height
+		if targetOffset < 0 {
+			targetOffset = 0
+		}
+		needsScroll = true
 	}
 
-	// If selected leg is above the viewport, scroll up to show it
-	if selectedLegOffset < viewportTop {
-		return s.smoothScrollTo(selectedLegOffset)
-	}
-	// If selected leg is below the viewport, scroll down to show it
-	if selectedLegOffset+selectedLegHeight > viewportBottom {
-		newOffset := selectedLegOffset + selectedLegHeight - s.viewport.Height
-		return s.smoothScrollTo(newOffset)
+	if needsScroll {
+		if s.smoothScrolling {
+			return s.smoothScrollTo(targetOffset)
+		} else {
+			s.viewport.SetYOffset(targetOffset)
+		}
 	}
 
 	return nil
@@ -234,7 +263,14 @@ func (s *routeState) displayRouteWithOffsetsAndHeights(r api.Journey) (string, [
 	origin := r.Legs[0].Origin
 	destination := r.Legs[len(r.Legs)-1].Destination
 
-	title := fmt.Sprintf("%s @%s\n\n%s @%s\n\n", origin.DisassembledName, formatTime(s.loc, origin.DepartureTimeEstimated), destination.DisassembledName, formatTime(s.loc, destination.ArrivalTimeEstimated))
+	// Wrap the title text to fit within the leg width
+	originText := fmt.Sprintf("%s @%s", origin.DisassembledName, formatTime(s.loc, origin.DepartureTimeEstimated))
+	destText := fmt.Sprintf("%s @%s", destination.DisassembledName, formatTime(s.loc, destination.ArrivalTimeEstimated))
+
+	wrappedOrigin := lipgloss.NewStyle().Width(s.legWidth).Render(originText)
+	wrappedDest := lipgloss.NewStyle().Width(s.legWidth).Render(destText)
+
+	title := fmt.Sprintf("%s\n\n%s\n\n", wrappedOrigin, wrappedDest)
 	doc.WriteString(title)
 
 	// Count lines in title for offset calculation
@@ -253,18 +289,6 @@ func (s *routeState) displayRouteWithOffsetsAndHeights(r api.Journey) (string, [
 	}
 
 	return doc.String(), offsets, heights
-}
-
-// displayRouteWithOffsets formats the details of a single journey and tracks leg positions
-func (s *routeState) displayRouteWithOffsets(r api.Journey) (string, []int) {
-	content, offsets, _ := s.displayRouteWithOffsetsAndHeights(r)
-	return content, offsets
-}
-
-// displayRoute formats the details of a single journey into a string for the viewport.
-func (s *routeState) displayRoute(r api.Journey) string {
-	content, _ := s.displayRouteWithOffsets(r)
-	return content
 }
 
 // formatTime converts a time string to a readable format.
@@ -320,7 +344,7 @@ func (s *routeState) RenderCells(f *flexbox.FlexBox) {
 	var finalView string
 
 	if len(s.Routes) > 0 {
-		// arrowedPaginator := lipgloss.JoinHorizontal(lipgloss.Left, "<", s.paginator.View(), ">")
+		// arrowedPaginator := lipgloss.JoinHorizontal(lipgloss.Left, "◄ ", s.paginator.View(), " ►")
 		// styledPaginator := lipgloss.NewStyle().Width(s.legWidth).Align(lipgloss.Center).Render(arrowedPaginator)
 		styledPaginator := lipgloss.NewStyle().Width(s.legWidth).Align(lipgloss.Center).Render(s.paginator.View())
 		finalView = lipgloss.JoinVertical(lipgloss.Left, s.viewport.View(), "\n", styledPaginator)
@@ -330,6 +354,7 @@ func (s *routeState) RenderCells(f *flexbox.FlexBox) {
 
 	s.root.Sidebar.SetContent(finalView)
 
+	// TODO render map here
 	if len(s.Routes) > 0 && s.paginator.Page < len(s.Routes) {
 		s.renderLeg(s.Routes[s.paginator.Page].Legs, s.legSelection)
 	}
@@ -345,9 +370,11 @@ func (s *routeState) Update(msg tea.Msg) (AppState, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case smoothScrollMsg:
-		// Handle smooth scrolling animation
-		if cmd := s.performSmoothScrollStep(); cmd != nil {
-			cmds = append(cmds, cmd)
+		// Handle smooth scrolling animation only if smooth scrolling is enabled
+		if s.smoothScrolling {
+			if cmd := s.performSmoothScrollStep(); cmd != nil {
+				cmds = append(cmds, cmd)
+			}
 		}
 
 	case tea.WindowSizeMsg:
