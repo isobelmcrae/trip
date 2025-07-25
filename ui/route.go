@@ -38,8 +38,12 @@ type routeState struct {
 	legWidth     int
 	loc          *time.Location
 	legSelection int
-	legOffsets   []int // vertical positions of each leg
-	legHeights   []int // actual heights of each leg
+	legOffsets   []int // Track vertical positions of each leg
+	legHeights   []int // Track actual heights of each leg
+
+	// Smooth scrolling state
+	targetYOffset int
+	isScrolling   bool
 }
 
 // getRoutes fetches trip plans from the API.
@@ -62,9 +66,11 @@ func newRouteState(root *RootModel) AppState {
 	location, _ := time.LoadLocation("Australia/Sydney")
 
 	s := &routeState{
-		root:         root,
-		loc:          location,
-		legSelection: 0,
+		root:          root,
+		loc:           location,
+		legSelection:  0,
+		targetYOffset: 0,
+		isScrolling:   false,
 	}
 
 	originalRoutes := s.getRoutes()
@@ -124,10 +130,72 @@ func (s *routeState) setViewportContent(routeIndex int) {
 	s.viewport.SetContent(content)
 }
 
+// smoothScrollTo initiates smooth scrolling to a target Y offset
+func (s *routeState) smoothScrollTo(targetOffset int) tea.Cmd {
+	if targetOffset < 0 {
+		targetOffset = 0
+	}
+
+	s.targetYOffset = targetOffset
+	s.isScrolling = true
+
+	return tea.Tick(time.Millisecond*16, func(time.Time) tea.Msg {
+		return smoothScrollMsg{}
+	})
+}
+
+type smoothScrollMsg struct{}
+
+// performSmoothScrollStep performs one step of smooth scrolling
+func (s *routeState) performSmoothScrollStep() tea.Cmd {
+	if !s.isScrolling {
+		return nil
+	}
+
+	currentOffset := s.viewport.YOffset
+	diff := s.targetYOffset - currentOffset
+
+	// If we're close enough, snap to target
+	if abs(diff) <= 1 {
+		s.viewport.SetYOffset(s.targetYOffset)
+		s.isScrolling = false
+		return nil
+	}
+
+	// Move 20% of the remaining distance each step
+	step := diff / 5
+	if step == 0 {
+		if diff > 0 {
+			step = 1
+		} else {
+			step = -1
+		}
+	}
+
+	newOffset := currentOffset + step
+	if newOffset < 0 {
+		newOffset = 0
+	}
+
+	s.viewport.SetYOffset(newOffset)
+
+	// Continue smooth scrolling
+	return tea.Tick(time.Millisecond*16, func(time.Time) tea.Msg {
+		return smoothScrollMsg{}
+	})
+}
+
+func abs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
+
 // scrollToSelectedLeg scrolls the viewport to keep the selected leg visible
-func (s *routeState) scrollToSelectedLeg() {
+func (s *routeState) scrollToSelectedLeg() tea.Cmd {
 	if s.legSelection >= len(s.legOffsets) || len(s.legOffsets) == 0 {
-		return
+		return nil
 	}
 
 	selectedLegOffset := s.legOffsets[s.legSelection]
@@ -137,22 +205,20 @@ func (s *routeState) scrollToSelectedLeg() {
 
 	// Special case: if first leg is selected, scroll to top to show header
 	if s.legSelection == 0 {
-		s.viewport.GotoTop()
-		return
+		return s.smoothScrollTo(0)
 	}
 
 	// If selected leg is above the viewport, scroll up to show it
 	if selectedLegOffset < viewportTop {
-		s.viewport.SetYOffset(selectedLegOffset)
+		return s.smoothScrollTo(selectedLegOffset)
 	}
 	// If selected leg is below the viewport, scroll down to show it
 	if selectedLegOffset+selectedLegHeight > viewportBottom {
 		newOffset := selectedLegOffset + selectedLegHeight - s.viewport.Height
-		if newOffset < 0 {
-			newOffset = 0
-		}
-		s.viewport.SetYOffset(newOffset)
+		return s.smoothScrollTo(newOffset)
 	}
+
+	return nil
 }
 
 // displayRouteWithOffsetsAndHeights formats the details of a single journey and tracks leg positions and heights
@@ -195,6 +261,12 @@ func (s *routeState) displayRouteWithOffsets(r api.Journey) (string, []int) {
 	return content, offsets
 }
 
+// displayRoute formats the details of a single journey into a string for the viewport.
+func (s *routeState) displayRoute(r api.Journey) string {
+	content, _ := s.displayRouteWithOffsets(r)
+	return content
+}
+
 // formatTime converts a time string to a readable format.
 func formatTime(loc *time.Location, rawTime string) string {
 	if rawTime == "" {
@@ -227,7 +299,18 @@ func (s *routeState) formatLeg(l api.Leg, idx int) string {
 		showSelectedStr = " (focused)"
 	}
 
-	leg := fmt.Sprintf("%s\n\n> Travel for %dmin%s\n\n%s", originStr, duration, showSelectedStr, destStr)
+	// Add position labels for start and end legs
+	var positionLabel string
+	if len(s.Routes) > 0 && s.paginator.Page < len(s.Routes) {
+		totalLegs := len(s.Routes[s.paginator.Page].Legs)
+		if idx == 0 {
+			positionLabel = " [START]"
+		} else if idx == totalLegs-1 {
+			positionLabel = " [END]"
+		}
+	}
+
+	leg := fmt.Sprintf("%s\n\n> Travel for %dmin%s%s\n\n%s", originStr, duration, showSelectedStr, positionLabel, destStr)
 
 	return styles.FormatRouteLeg(s.legWidth, transport, isSelected).Render(leg) + "\n"
 }
@@ -260,6 +343,12 @@ func (s *routeState) Update(msg tea.Msg) (AppState, tea.Cmd) {
 	legSelectionBefore := s.legSelection
 
 	switch msg := msg.(type) {
+	case smoothScrollMsg:
+		// Handle smooth scrolling animation
+		if cmd := s.performSmoothScrollStep(); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+
 	case tea.WindowSizeMsg:
 		// Get new dimensions
 		bigWidth := s.root.flexBox.GetWidth()
@@ -275,11 +364,14 @@ func (s *routeState) Update(msg tea.Msg) (AppState, tea.Cmd) {
 		if len(s.Routes) > 0 {
 			s.setViewportContent(s.paginator.Page)
 			// After resizing, ensure the selected leg is still visible
-			s.scrollToSelectedLeg()
+			if cmd := s.scrollToSelectedLeg(); cmd != nil {
+				cmds = append(cmds, cmd)
+			}
 		} else {
 			s.viewport.SetContent(lipgloss.NewStyle().Width(s.legWidth).Align(lipgloss.Center).Render("No routes found."))
 		}
-		return s, nil
+		s.RenderCells(s.root.flexBox)
+		return s, tea.Batch(cmds...)
 
 	case tea.KeyMsg:
 		// Handle leg selection keys first
@@ -320,7 +412,9 @@ func (s *routeState) Update(msg tea.Msg) (AppState, tea.Cmd) {
 	} else if len(s.Routes) > 0 && s.legSelection != legSelectionBefore {
 		// Leg selection changed, update content and scroll to selected leg
 		s.setViewportContent(s.paginator.Page)
-		s.scrollToSelectedLeg()
+		if cmd := s.scrollToSelectedLeg(); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
 	}
 
 	s.RenderCells(s.root.flexBox)
