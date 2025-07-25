@@ -42,6 +42,10 @@ func main() {
 	log.SetLevel(log.DebugLevel)
 	log.SetReportCaller(true)
 
+	// Force sydney timezone for now
+	// FIXME: repair automatic timezone detection in the future
+	time.Local, _ = time.LoadLocation("Australia/Sydney")
+
 	if *sshMode {
 		runSSH(*sshAddr)
 	} else {
