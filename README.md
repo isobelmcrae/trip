@@ -2,7 +2,7 @@
 
 **Sydney public transport, in your terminal.**
 
-![Demo](https://vhs.charm.sh/vhs-3CWGX0CiqP2yfWXnOxASOC.gif)
+![Demo](https://vhs.charm.sh/vhs-4pUxMU7ivISIfNGT3HOav2.gif)
 
 ---
 
