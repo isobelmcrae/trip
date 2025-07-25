@@ -62,8 +62,8 @@ func drawFeature(canvas *Canvas, lb *LabelBuffer, feature *StyledFeature, pos or
 			if simplifiedLine, ok := simplifiedGeom.(orb.LineString); ok {
 				canvas.Polyline(simplifiedLine, feature.Color)
 			}
-			//simplified, _ := planar.Simplify(nil, 0.5, points...)
-			//canvas.Polyline(simplified, feature.Color)
+			// simplified, _ := planar.Simplify(nil, 0.5, points...)
+			// canvas.Polyline(simplified, feature.Color)
 		}
 	case "symbol":
 		label := feature.Label
@@ -115,9 +115,10 @@ func (c *Canvas) SetPixel(x, y int, color string) {
 
 func (c *Canvas) setPixelSplat(x, y int, color string) {
 	if idx, ok := c.project(x, y); ok {
-		//c.pixelBuffer[idx] |= 0xff // splat!
-		//c.pixelBuffer[idx] |= c.brailleMap[y%4][x%2]
-		c.charBuffer[idx] = '•'
+		// c.pixelBuffer[idx] |= 0xff // splat!
+		// c.pixelBuffer[idx] |= c.brailleMap[y%4][x%2]
+		// c.charBuffer[idx] = '•'
+		c.charBuffer[idx] = '⬤'
 		c.colorBuffer[idx] = color
 	}
 }
@@ -171,9 +172,7 @@ func (c *Canvas) Polyline(points []orb.Point, color string) {
 	}
 }
 
-var (
-	redColour = ("#ff0000")
-)
+var redColour = ("#ff0000")
 
 // to be used after everything is rendered
 func (c *Canvas) SplatLineGeo(
