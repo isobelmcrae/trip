@@ -26,8 +26,8 @@ type legSelectionKeymap struct {
 
 // up to move up, down to move down
 var legSelectionKeymapDefault = legSelectionKeymap{
-	PrevLeg: key.NewBinding(key.WithKeys("up", "j")),
-	NextLeg: key.NewBinding(key.WithKeys("down", "k")),
+	PrevLeg: key.NewBinding(key.WithKeys("up", "k")),
+	NextLeg: key.NewBinding(key.WithKeys("down", "j")),
 }
 
 // routeState holds the state for the route view.
