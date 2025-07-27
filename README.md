@@ -1,10 +1,12 @@
+> [!IMPORTANT]
+> Development has moved to [Linux-Society/trip](https://github.com/Linux-Society/trip). 
+
 # 🚉 trip
 
-**Sydney public transport, in your terminal.**
+**sydney public transport, in your terminal**\
+*made in collaboration with [linux society](https://linuxunsw.org) @ unsw*
 
 ![Demo](https://vhs.charm.sh/vhs-4pUxMU7ivISIfNGT3HOav2.gif)
-
----
 
 ## 🛠 Setup
 
@@ -29,8 +31,6 @@ go build -o trip -tags 'fts5' main.go
 ./trip
 ```
 
----
-
 ### SSH Server Mode
 
 `trip` can be run in SSH mode to allow users to connect via `ssh`:
@@ -42,7 +42,9 @@ Then build with permissions to bind to privileged ports and run in ssh mode:
 go build -o trip -tags 'fts5' main.go
 sudo setcap CAP_NET_BIND_SERVICE=+eip trip
 ./trip --ssh
-
 # then connect from another terminal
 ssh user@your.domain.here -p your_port
 ```
+
+## Acknowledgements
+thank you everyone who helped trip come to life in such a short period of time ❤️
